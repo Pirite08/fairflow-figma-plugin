@@ -157,6 +157,18 @@ function extraStart(points, id, name) {
     ? points
     : points.concat([{ nodeId: id, name: name }]);
 }
+function setShippingAmounts(frame, total) {
+  const details = frame.children.find((node) => node.name === "배송 명세");
+  if (!details || details.type !== "FRAME") throw Error("배송 명세 레이어를 찾지 못했습니다.");
+  const hasProduct = details.children.some((node) => node.name === "상품 가격");
+  const hasTotal = details.children.some((node) => node.name === "결제 총액");
+  if (hasProduct && hasTotal) return;
+  if (details.height < 154) details.resize(details.width, 154);
+  if (!hasProduct)
+    words(details, "상품 가격", "상품 29,900원", 15, 76, 14, muted);
+  if (!hasTotal)
+    words(details, "결제 총액", "결제 예정 금액 " + total + "원", 15, 113, 17, ink, true);
+}
 export async function build() {
   const previous = registered();
   if (previous) {
@@ -167,7 +179,17 @@ export async function build() {
       }
     }
     const layers = await Promise.all(ids.map(id => figma.getNodeByIdAsync(id)));
-    if (layers.every(node => node && !node.removed)) return;
+    if (layers.every(node => node && !node.removed)) {
+      await fonts();
+      const shipping = previous.shipping;
+      setShippingAmounts(await get(shipping.review), "34,900");
+      setShippingAmounts(await get(shipping.freeReview), "29,900");
+      if (!shipping.component) {
+        shipping.component = (await (await get(shipping.fast)).getMainComponentAsync()).id;
+        page.setPluginData(PAGE_KEY, JSON.stringify(previous));
+      }
+      return;
+    }
   }
   await fonts();
   const offset = page.children.reduce(
@@ -237,6 +259,8 @@ export async function build() {
     const freeReceipt = box(sc, "배송 명세", 22, 218, 316, 92, pale, 12);
     words(freeReceipt, "선택한 방법", "일반배송", 15, 16, 18, ink, true);
     words(freeReceipt, "배송비", "배송비 0원", 15, 50, 14, muted);
+    setShippingAmounts(sb, "34,900");
+    setShippingAmounts(sc, "29,900");
     await link(fast, sb);
     await link(free, sc);
     await link(go, sb);

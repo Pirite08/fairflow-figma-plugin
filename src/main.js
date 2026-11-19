@@ -1,6 +1,8 @@
 import { readJourney } from "./reader.js";
 import { analyzeJourney } from "./analyze.js";
 import { startPanel } from "./controller.js";
+import { hasFastShipping, readShippingScenario } from "./shipping.js";
+import { createShippingDesigns } from "./shipping-design.js";
 
 figma.showUI(__html__, { width: 420, height: 620, themeColors: true });
 startPanel(figma, async (frame, startConfirmedByDesigner) => {
@@ -28,6 +30,8 @@ startPanel(figma, async (frame, startConfirmedByDesigner) => {
     transitionCount: journey.transitions.length,
     canConfirmStart: !journey.flow_start_confirmed,
     warnings: journey.warnings || [],
-    findings
+    findings,
+    shipping: readShippingScenario(journey, figma.currentPage.id),
+    hasFastShipping: hasFastShipping(journey)
   };
-});
+}, createShippingDesigns);

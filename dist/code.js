@@ -18,6 +18,18 @@
     return a;
   };
   var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b));
+  var __objRest = (source, exclude) => {
+    var target = {};
+    for (var prop in source)
+      if (__hasOwnProp.call(source, prop) && exclude.indexOf(prop) < 0)
+        target[prop] = source[prop];
+    if (source != null && __getOwnPropSymbols)
+      for (var prop of __getOwnPropSymbols(source)) {
+        if (exclude.indexOf(prop) < 0 && __propIsEnum.call(source, prop))
+          target[prop] = source[prop];
+      }
+    return target;
+  };
 
   // src/reader.js
   var MAX_STATES = 40;
@@ -68,11 +80,14 @@
     if (["unselected", "unchecked", "deselected", "false", "off", "해제", "미선택", "선택해제", "체크해제", "꺼짐"].includes(token)) return false;
     return void 0;
   }
+  function isSelectionProperty(key) {
+    const name = key.split("#")[0].trim();
+    return /^(is[\s_-]?)?(checked|selected|선택|체크)(\s*여부)?$/i.test(name) || /^(selection|check state|선택 상태|state|상태)$/i.test(name);
+  }
   function componentSelection(layer) {
     const properties = layer.componentProperties || {};
     for (const [key, property] of Object.entries(properties)) {
-      const name = key.split("#")[0].trim();
-      if (!/^(is[\s_-]?)?(checked|selected|선택|체크)(\s*여부)?$/i.test(name) && !/^(selection|check state|선택 상태|state|상태)$/i.test(name)) continue;
+      if (!isSelectionProperty(key)) continue;
       const value = parseSelection(property.value);
       if (value !== void 0) return value;
     }
@@ -711,8 +726,173 @@
     return findings;
   }
 
+  // src/shipping.js
+  var optionRoles = /* @__PURE__ */ new Set(["radio", "checkbox", "toggle"]);
+  var fastLabel = /빠른\s*배송/;
+  var basicLabel = /(?:일반|기본)\s*배송/;
+  var nextLabel = /^(?:주문\s*(?:내역\s*)?확인|결제\s*(?:정보|단계)(?:\s*보기)?|다음(?:\s*단계)?|계속(?:하기)?)$/;
+  var shippingPattern = "paid_option_preselection";
+  function only(nodes, predicate) {
+    const matches = nodes.filter(predicate);
+    return matches.length === 1 ? matches[0] : null;
+  }
+  function hasFastShipping(journey) {
+    return journey.states.some((state) => state.nodes.some((node) => optionRoles.has(node.role) && fastLabel.test(node.text)));
+  }
+  function reviewTotal(state) {
+    const label = state && only(joinPriceRows(state).nodes, (node) => totalText.test(node.text) && money(node) !== null);
+    const amount = label ? money(label) : null;
+    return Number.isSafeInteger(amount) ? amount : null;
+  }
+  function readShippingScenario(journey, pageId) {
+    var _a, _b;
+    if (!journey.flow_start_confirmed || ((_a = journey.warnings) == null ? void 0 : _a.length)) return null;
+    const entries = new Map(journey.states.map((state) => [state.state_id, state]));
+    const reachable = /* @__PURE__ */ new Set([journey.entry_state_id]);
+    for (const id of reachable) {
+      for (const edge of journey.transitions) {
+        if (edge.from_state_id === id && !edge.uncertain && edge.action.type === "click") reachable.add(edge.to_state_id);
+      }
+    }
+    const shipping = only(journey.states, (state) => reachable.has(state.state_id) && state.nodes.some((node) => optionRoles.has(node.role) && fastLabel.test(node.text)));
+    if (!shipping) return null;
+    const options = shipping.nodes.filter((node) => optionRoles.has(node.role) && node.text.trim());
+    if (options.length !== 2) return null;
+    const paid = only(options, (node) => fastLabel.test(node.text));
+    const basic = only(options, (node) => basicLabel.test(node.text));
+    const proceed = only(shipping.nodes, (node) => ["button", "link"].includes(node.role) && nextLabel.test(node.text.trim()));
+    if (!paid || !basic || paid === basic || !proceed || typeof paid.checked !== "boolean" || typeof basic.checked !== "boolean" || paid.checked === basic.checked) return null;
+    const paidFee = money(paid), knownBasicFee = money(basic);
+    const basicFee = knownBasicFee != null ? knownBasicFee : /무료/.test(basic.text) ? 0 : null;
+    if (!Number.isSafeInteger(paidFee) || !Number.isSafeInteger(basicFee) || paidFee <= basicFee || basicFee < 0) return null;
+    const routes = journey.transitions.filter((edge) => edge.from_state_id === shipping.state_id);
+    const destination = (node) => {
+      const edge = only(routes, (route) => route.action.node_id === node.node_id);
+      if (!edge || edge.uncertain || edge.action.type !== "click" || edge.action.trigger_node_id) return null;
+      return entries.get(edge.to_state_id);
+    };
+    const fastReview = destination(paid), basicReview = destination(basic), defaultReview = destination(proceed);
+    if (!fastReview || !basicReview || fastReview === basicReview || fastReview === shipping || basicReview === shipping || defaultReview !== (paid.checked ? fastReview : basicReview)) return null;
+    const fastTotal = reviewTotal(fastReview), basicTotal = reviewTotal(basicReview);
+    if (fastTotal === null || basicTotal === null || fastTotal < paidFee || basicTotal < basicFee || fastTotal - paidFee !== basicTotal - basicFee) return null;
+    return {
+      pageId,
+      rootId: (_b = entries.get(journey.entry_state_id)) == null ? void 0 : _b.frame_id,
+      shippingFrameId: shipping.frame_id,
+      paidId: paid.node_id,
+      basicId: basic.node_id,
+      paidSelectionId: paid.selection_node_id || paid.node_id,
+      basicSelectionId: basic.selection_node_id || basic.node_id,
+      continueId: proceed.node_id,
+      fastReviewId: fastReview.frame_id,
+      basicReviewId: basicReview.frame_id,
+      fastTotal,
+      basicTotal,
+      fastFee: paidFee,
+      basicFee,
+      defaultOption: paid.checked ? "fast" : "basic"
+    };
+  }
+  function shippingQuote(spec) {
+    const { fastTotal, basicTotal, fastFee, basicFee, defaultOption } = spec || {};
+    return {
+      fastTotal: fastTotal != null ? fastTotal : null,
+      basicTotal: basicTotal != null ? basicTotal : null,
+      fastFee: fastFee != null ? fastFee : null,
+      basicFee: basicFee != null ? basicFee : null,
+      defaultOption: defaultOption != null ? defaultOption : null
+    };
+  }
+
+  // src/shipping-panel.js
+  function shippingStatus(report, spec) {
+    var _a;
+    const findings = ((_a = report == null ? void 0 : report.findings) == null ? void 0 : _a.filter((finding2) => finding2.pattern === shippingPattern)) || [];
+    const matching = spec && findings.find((finding2) => finding2.evidence.some((ref2) => ref2.node_id === spec.paidId));
+    return (matching == null ? void 0 : matching.status) || (findings.length === 1 ? findings[0].status : "needs_context");
+  }
+  function createShippingPanel({ api, inspectFrame, makeShippingDesigns, post, revealNodes, context }) {
+    const comparisons = /* @__PURE__ */ new Map();
+    let busy = false;
+    async function readFrame(id, confirmed) {
+      const frame = await api.getNodeByIdAsync(id);
+      if (!frame || frame.removed || frame.type !== "FRAME") return null;
+      return inspectFrame(frame, confirmed);
+    }
+    function showExisting(rootId) {
+      var _a;
+      const comparison = (_a = comparisons.get(rootId)) == null ? void 0 : _a.result;
+      if (comparison) post("shipping-comparison", { comparison, canRescan: true });
+    }
+    async function update(create) {
+      const { rootId, generation, confirmed } = context();
+      if (busy || !rootId) return;
+      let entry = comparisons.get(rootId);
+      if (!create && !entry) return;
+      busy = true;
+      post("shipping-loading");
+      try {
+        const original = await readFrame(rootId, confirmed);
+        if (!entry) {
+          const spec = original == null ? void 0 : original.shipping;
+          if (!spec) throw Error("두 배송 방법의 옵션, 기본 진행 버튼, 주문 확인 화면의 총액을 다시 확인하세요.");
+          const designs = await makeShippingDesigns(api, spec);
+          entry = { referenceFrameId: designs.referenceFrameId, columns: [
+            { key: "original", frameId: spec.shippingFrameId, fastReviewId: spec.fastReviewId, basicReviewId: spec.basicReviewId },
+            __spreadValues({ key: "minimal" }, designs.minimal),
+            __spreadValues({ key: "layout" }, designs.layout)
+          ] };
+          comparisons.set(rootId, entry);
+        }
+        const columns = [];
+        for (const variant of entry.columns) {
+          const report = variant.key === "original" ? original : await readFrame(variant.frameId, false);
+          const spec = report == null ? void 0 : report.shipping;
+          columns.push(__spreadProps(__spreadValues(__spreadValues(__spreadValues({}, variant), spec ? {
+            frameId: spec.shippingFrameId,
+            fastReviewId: spec.fastReviewId,
+            basicReviewId: spec.basicReviewId
+          } : {}), shippingQuote(spec)), {
+            status: shippingStatus(report, spec)
+          }));
+        }
+        entry.result = __spreadProps(__spreadValues({ rootId, referenceFrameId: entry.referenceFrameId }, shippingQuote(original == null ? void 0 : original.shipping)), { columns });
+        if (context().generation === generation) showExisting(rootId);
+      } catch (error) {
+        console.error("FairFlow shipping comparison", error);
+        if (context().generation === generation) {
+          post("shipping-error", { message: error instanceof Error ? error.message : "배송 수정안을 검사할 수 없습니다." });
+        }
+      } finally {
+        busy = false;
+      }
+    }
+    async function focus({ type, key, option }) {
+      if (busy) return;
+      const { rootId, generation } = context();
+      const entry = comparisons.get(rootId);
+      if (!(entry == null ? void 0 : entry.result)) return;
+      let ids;
+      if (type === "shipping-overview") {
+        ids = [entry.referenceFrameId || entry.columns[0].frameId, ...entry.columns.slice(1).map((column) => column.frameId)];
+      } else {
+        const column = entry.result.columns.find((item) => item.key === key);
+        if (!column || option != null && option !== "fast" && option !== "basic") return;
+        ids = [option === "fast" ? column.fastReviewId : option === "basic" ? column.basicReviewId : column.frameId];
+      }
+      try {
+        await revealNodes(ids, generation);
+      } catch (error) {
+        post("shipping-error", { message: "선택한 비교 화면을 열 수 없습니다. 수정안이 남아 있는지 확인하세요." });
+      }
+    }
+    return { update, focus, showExisting, get busy() {
+      return busy;
+    } };
+  }
+
   // src/controller.js
-  function startPanel(api, inspectFrame) {
+  function startPanel(api, inspectFrame, makeShippingDesigns) {
     let rootId = null;
     let generation = 0;
     const evidenceByState = /* @__PURE__ */ new Map();
@@ -724,7 +904,16 @@
       const selection = api.currentPage.selection;
       return selection.length === 1 && selection[0].type === "FRAME" ? selection[0] : null;
     };
+    const shipping = makeShippingDesigns && createShippingPanel({
+      api,
+      inspectFrame,
+      makeShippingDesigns,
+      post,
+      revealNodes,
+      context: () => ({ rootId, generation, confirmed: Boolean(rootId && confirmedRootId === rootId) })
+    });
     async function scan(useSelection) {
+      if (shipping == null ? void 0 : shipping.busy) return;
       const version = ++generation;
       evidenceByState.clear();
       canConfirmStart = false;
@@ -749,12 +938,31 @@
             evidenceByState.get(item.state_id).add(item.node_id);
           }
         }
-        post("result", result);
+        const _a = result, { shipping: spec, hasFastShipping: hasFastShipping2 } = _a, report = __objRest(_a, ["shipping", "hasFastShipping"]);
+        post("result", __spreadValues(__spreadProps(__spreadValues({}, report), {
+          rootId: frame.id
+        }), shipping ? {
+          shipping: spec ? shippingQuote(spec) : null,
+          shippingIssue: hasFastShipping2 && !spec ? "여정의 시작점을 확인하고, 일반·빠른배송과 기본 진행 버튼을 총액이 표시된 주문 확인 화면에 각각 연결하세요." : null
+        } : {}));
+        shipping == null ? void 0 : shipping.showExisting(frame.id);
       } catch (error) {
         if (generation !== version) return;
         console.error("FairFlow scan", error);
         post("error", { message: "프레임을 읽는 중 오류가 발생했습니다. 프레임을 선택하고 다시 검사하세요." });
       }
+    }
+    async function revealNodes(ids, version) {
+      const nodes = await Promise.all(ids.map((id) => api.getNodeByIdAsync(id)));
+      if (generation !== version) return;
+      if (nodes.some((node) => !node || node.removed)) throw Error("레이어가 삭제되었습니다. 다시 검사하세요.");
+      let page = nodes[0].parent;
+      while (page && page.type !== "PAGE") page = page.parent;
+      if (!page) return;
+      if (page.id !== api.currentPage.id) await api.setCurrentPageAsync(page);
+      if (generation !== version) return;
+      api.currentPage.selection = nodes;
+      api.viewport.scrollAndZoomIntoView(nodes);
     }
     async function focus({ state_id, node_id }) {
       var _a;
@@ -764,21 +972,10 @@
         return;
       }
       try {
-        const node = await api.getNodeByIdAsync(node_id);
+        await revealNodes([node_id], version);
+      } catch (error) {
         if (generation !== version) return;
-        if (!node || node.removed) {
-          post("notice", { message: "레이어가 삭제되었습니다. 다시 검사하세요." });
-          return;
-        }
-        let page = node.parent;
-        while (page && page.type !== "PAGE") page = page.parent;
-        if (!page) return;
-        if (page.id !== api.currentPage.id) await api.setCurrentPageAsync(page);
-        if (generation !== version) return;
-        api.currentPage.selection = [node];
-        api.viewport.scrollAndZoomIntoView([node]);
-      } catch (e) {
-        post("notice", { message: "레이어를 열 수 없습니다. 프레임을 다시 검사하세요." });
+        post("notice", { message: error.message === "레이어가 삭제되었습니다. 다시 검사하세요." ? error.message : "레이어를 열 수 없습니다. 프레임을 다시 검사하세요." });
       }
     }
     api.ui.onmessage = async (message) => {
@@ -799,11 +996,284 @@
           break;
         case "focus":
           return focus(message);
+        case "shipping-create":
+        case "shipping-rescan":
+          return shipping == null ? void 0 : shipping.update(message.type === "shipping-create");
+        case "shipping-focus":
+        case "shipping-overview":
+          return shipping == null ? void 0 : shipping.focus(message);
       }
     };
     api.on("selectionchange", () => {
       if (ready && !rootId && selectedFrame()) return scan(true);
     });
+  }
+
+  // src/shipping-design.js
+  var GUTTER = 96;
+  async function setChoice(instance, desired) {
+    var _a, _b;
+    if (instance.type !== "INSTANCE") throw Error("배송 선택 상태를 바꿀 컴포넌트 인스턴스를 찾을 수 없습니다.");
+    const candidates = Object.entries(instance.componentProperties).filter(
+      ([key2, property2]) => isSelectionProperty(key2) && ["BOOLEAN", "VARIANT"].includes(property2.type) && parseSelection(property2.value) !== void 0
+    );
+    if (candidates.length !== 1) throw Error("배송 컴포넌트의 선택 속성을 하나로 특정할 수 없습니다.");
+    const [key, property] = candidates[0];
+    let value = desired;
+    if (property.type === "VARIANT") {
+      const component = await instance.getMainComponentAsync();
+      const set = component == null ? void 0 : component.parent;
+      const values = (set == null ? void 0 : set.type) === "COMPONENT_SET" ? ((_a = set.variantGroupProperties[key]) == null ? void 0 : _a.values) || [] : [];
+      const matches = values.filter((v) => parseSelection(v) === desired);
+      if (matches.length !== 1) throw Error("이 컴포넌트의 선택·해제 변형을 확정할 수 없습니다.");
+      value = matches[0];
+    }
+    instance.setProperties({ [key]: value });
+    if (parseSelection((_b = instance.componentProperties[key]) == null ? void 0 : _b.value) !== desired)
+      throw Error("배송 선택 상태를 적용하지 못했습니다.");
+  }
+  function pathInFrame(node, frame) {
+    const path = [];
+    for (let current = node; (current == null ? void 0 : current.id) !== frame.id; current = current.parent) {
+      const parent = current == null ? void 0 : current.parent;
+      if (!parent || parent.type === "PAGE") throw Error("배송 선택 화면에 속하지 않는 레이어가 있습니다.");
+      const index = parent.children.findIndex((child) => child.id === current.id);
+      if (index < 0) throw Error("배송 레이어의 위치가 변경되었습니다.");
+      path.unshift(index);
+    }
+    return path;
+  }
+  function atPath(frame, path) {
+    return path.reduce((node, index) => node.children[index], frame);
+  }
+  function pageOf(node) {
+    while (node && node.type !== "PAGE") node = node.parent;
+    return node;
+  }
+  function compareOptions(api, paid, basic, owned) {
+    var _a;
+    const parent = paid.parent;
+    if (!parent || ((_a = basic.parent) == null ? void 0 : _a.id) !== parent.id || !["FRAME", "GROUP"].includes(parent.type)) {
+      throw Error("비교 배치를 만들려면 두 배송 옵션이 같은 편집 가능한 컨테이너에 있어야 합니다.");
+    }
+    for (let ancestor = parent; ancestor && ancestor.type !== "PAGE"; ancestor = ancestor.parent) {
+      if (ancestor.type === "INSTANCE") throw Error("인스턴스 내부의 레이어는 비교 배치로 옮길 수 없습니다.");
+    }
+    const left = Math.min(paid.x, basic.x), top = Math.min(paid.y, basic.y);
+    const width = Math.max(paid.x + paid.width, basic.x + basic.width) - left;
+    const height = Math.max(paid.y + paid.height, basic.y + basic.height) - top;
+    if ([paid, basic].some((n) => Math.abs(n.rotation || 0) > 0.01))
+      throw Error("회전한 배송 옵션은 비교 배치로 묶을 수 없습니다.");
+    const paidIndex = parent.children.findIndex((n) => n.id === paid.id);
+    const basicIndex = parent.children.findIndex((n) => n.id === basic.id);
+    const inAutoLayout = parent.layoutMode && parent.layoutMode !== "NONE";
+    if (inAutoLayout && (parent.layoutMode === "GRID" || Math.abs(paidIndex - basicIndex) !== 1 || [paid, basic].some((n) => n.layoutPositioning === "ABSOLUTE"))) {
+      throw Error("이 자동 레이아웃에서는 다른 요소를 유지하면서 배송 옵션을 묶을 수 없습니다.");
+    }
+    const stacked = Math.abs(basic.y - paid.y) >= Math.min(basic.height, paid.height) / 2;
+    const free = stacked ? height - paid.height - basic.height : width - paid.width - basic.width;
+    if (free < -1) throw Error("겹쳐 있는 배송 옵션은 비교 배치로 묶을 수 없습니다.");
+    const spacing = Math.max(0, Math.min(8, Math.floor(free / 2)));
+    const pad = Math.max(0, Math.min(6, Math.floor((free - spacing) / 2)));
+    const wrapper = api.createFrame();
+    owned.push(wrapper);
+    parent.insertChild(Math.min(paidIndex, basicIndex), wrapper);
+    wrapper.name = "배송 방법 비교";
+    wrapper.fills = [];
+    wrapper.strokes = [{ type: "SOLID", color: { r: 0.43, g: 0.51, b: 0.47 }, opacity: 0.55 }];
+    wrapper.strokeAlign = "INSIDE";
+    wrapper.cornerRadius = 12;
+    wrapper.clipsContent = false;
+    wrapper.layoutMode = stacked ? "VERTICAL" : "HORIZONTAL";
+    wrapper.primaryAxisSizingMode = "FIXED";
+    wrapper.counterAxisSizingMode = "FIXED";
+    wrapper.resize(width, height);
+    wrapper.paddingLeft = wrapper.paddingRight = stacked ? 4 : pad;
+    wrapper.paddingTop = wrapper.paddingBottom = stacked ? pad : 2;
+    wrapper.itemSpacing = spacing;
+    wrapper.counterAxisAlignItems = "CENTER";
+    wrapper.primaryAxisAlignItems = "CENTER";
+    for (const choice of [basic, paid]) {
+      wrapper.appendChild(choice);
+      choice.layoutPositioning = "AUTO";
+      if (stacked) {
+        choice.layoutSizingHorizontal = "FILL";
+        choice.layoutSizingVertical = "FIXED";
+      } else {
+        choice.layoutSizingHorizontal = "FILL";
+        choice.layoutSizingVertical = "FILL";
+      }
+    }
+    if (!inAutoLayout) {
+      wrapper.x = left;
+      wrapper.y = top;
+    }
+  }
+  async function wireCopies(frames, controls, destinations2, fastId, basicId, defaultId = basicId) {
+    const desired = /* @__PURE__ */ new Map([
+      [controls.paid.id, fastId],
+      [controls.basic.id, basicId],
+      [controls.next.id, defaultId]
+    ]);
+    const found = /* @__PURE__ */ new Set();
+    const receipts = /* @__PURE__ */ new Set([fastId, basicId]);
+    function remap(action, scope, onClick) {
+      if (action.type === "CONDITIONAL") {
+        const blocks = action.conditionalBlocks.map((block) => {
+          const actions = block.actions.map((a) => remap(a, null, false));
+          return actions.some((a, i) => a !== block.actions[i]) ? __spreadProps(__spreadValues({}, block), { actions }) : block;
+        });
+        return blocks.some((b, i) => b !== action.conditionalBlocks[i]) ? __spreadProps(__spreadValues({}, action), { conditionalBlocks: blocks }) : action;
+      }
+      if (action.type !== "NODE") return action;
+      let id = destinations2.get(action.destinationId) || action.destinationId;
+      if (scope && onClick && action.navigation === "NAVIGATE" && receipts.has(id)) {
+        found.add(scope);
+        id = desired.get(scope);
+      }
+      return id === action.destinationId ? action : __spreadProps(__spreadValues({}, action), { destinationId: id });
+    }
+    async function visit(node, scope) {
+      if (desired.has(node.id)) scope = node.id;
+      const original = node.reactions || [];
+      const reactions = original.map((r) => {
+        const actions = r.actions || (r.action ? [r.action] : []);
+        const mapped = actions.map((a) => {
+          var _a;
+          return remap(a, scope, ((_a = r.trigger) == null ? void 0 : _a.type) === "ON_CLICK");
+        });
+        return mapped.some((a, i) => a !== actions[i]) ? { trigger: r.trigger, actions: mapped } : r;
+      });
+      if (reactions.some((r, i) => r !== original[i])) await node.setReactionsAsync(reactions);
+      for (const child of node.children || []) await visit(child, scope);
+    }
+    for (const frame of frames) await visit(frame, null);
+    for (const control2 of [controls.paid, controls.basic, controls.next]) {
+      if (found.has(control2.id)) continue;
+      if ((control2.reactions || []).some((r) => {
+        var _a;
+        return ((_a = r.trigger) == null ? void 0 : _a.type) === "ON_CLICK";
+      }))
+        throw Error("배송 버튼의 클릭 동작을 안전하게 연결할 수 없습니다.");
+      const click = {
+        trigger: { type: "ON_CLICK" },
+        actions: [{ type: "NODE", navigation: "NAVIGATE", destinationId: desired.get(control2.id), transition: null }]
+      };
+      await control2.setReactionsAsync([...control2.reactions || [], click]);
+    }
+  }
+  function box(node) {
+    return node.absoluteBoundingBox || { x: node.x, y: node.y, width: node.width, height: node.height };
+  }
+  function position(node, x, y) {
+    const rect = box(node);
+    node.x += x - rect.x;
+    node.y += y - rect.y;
+  }
+  async function createShippingDesigns(api, spec) {
+    const page = api.currentPage;
+    if (page.id !== spec.pageId) throw Error("검사한 페이지로 돌아가서 다시 실행하세요.");
+    const keys = [
+      "shippingFrameId",
+      "fastReviewId",
+      "basicReviewId",
+      "paidId",
+      "basicId",
+      "paidSelectionId",
+      "basicSelectionId",
+      "continueId"
+    ];
+    const nodes = await Promise.all(keys.map((key) => api.getNodeByIdAsync(spec[key])));
+    if (nodes.some((n) => {
+      var _a;
+      return !n || n.removed || ((_a = pageOf(n)) == null ? void 0 : _a.id) !== page.id;
+    }))
+      throw Error("원본 배송 여정이 변경되었습니다. 다시 검사하세요.");
+    const [shipping, fastReview, basicReview, paid, basic, paidSelection, basicSelection, next] = nodes;
+    if ([shipping, fastReview, basicReview].some((n) => n.type !== "FRAME") || (/* @__PURE__ */ new Set([shipping.id, fastReview.id, basicReview.id])).size !== 3 || (/* @__PURE__ */ new Set([paid.id, basic.id, next.id])).size !== 3) {
+      throw Error("서로 다른 배송 선택 화면과 두 확인 화면이 필요합니다.");
+    }
+    pathInFrame(paidSelection, paid);
+    pathInFrame(basicSelection, basic);
+    const paths = [paid, basic, paidSelection, basicSelection, next].map((node) => pathInFrame(node, shipping));
+    const existing = page.children.slice(), existingNames = new Set(existing.map((n) => n.name));
+    const baseLabels = ["원본 · 생성 시점", "최소 수정안", "비교 배치안"];
+    const nameSet = (number2) => baseLabels.map((label) => shipping.name + " · " + label + (number2 > 1 ? " " + number2 : ""));
+    let number = 1, labels = nameSet(number);
+    while (labels.some(
+      (label) => [label, label + " · 빠른배송 확인", label + " · 일반배송 확인"].some((name) => existingNames.has(name))
+    ))
+      labels = nameSet(++number);
+    const originals = [shipping, fastReview, basicReview], rects = originals.map(box);
+    const column = Math.max(...rects.map((r) => r.width)) + GUTTER, y = rects[0].y;
+    const boardWidth = 2 * column + Math.max(...rects.map((r) => r.width));
+    const boardHeight = rects.reduce((total, r) => total + r.height, 2 * GUTTER);
+    let x = rects[0].x + rects[0].width + GUTTER;
+    for (const rect of existing.map(box).sort((a, b) => a.x - b.x)) {
+      if (rect.y + rect.height + GUTTER <= y || rect.y >= y + boardHeight + GUTTER || rect.x + rect.width + GUTTER <= x || rect.x >= x + boardWidth + GUTTER)
+        continue;
+      x = rect.x + rect.width + GUTTER;
+    }
+    const owned = [];
+    function copy(source, name, x2, y2) {
+      var _a;
+      const clone = source.clone();
+      owned.push(clone);
+      if (((_a = clone.parent) == null ? void 0 : _a.id) !== page.id) page.appendChild(clone);
+      clone.name = name;
+      position(clone, x2, y2);
+      return clone;
+    }
+    try {
+      const reference = copy(shipping, labels[0], x, y);
+      const [referencePaid, referenceBasic, , , referenceNext] = paths.map((path) => atPath(reference, path));
+      await wireCopies(
+        [reference],
+        { paid: referencePaid, basic: referenceBasic, next: referenceNext },
+        /* @__PURE__ */ new Map(),
+        fastReview.id,
+        basicReview.id,
+        spec.defaultOption === "fast" ? fastReview.id : basicReview.id
+      );
+      const results = { referenceFrameId: reference.id };
+      const starts = [];
+      for (const [index, kind] of ["minimal", "layout"].entries()) {
+        const left = x + (index + 1) * column, label = labels[index + 1];
+        const frame = copy(shipping, label, left, y);
+        const fast = copy(fastReview, label + " · 빠른배송 확인", left, y + rects[0].height + GUTTER);
+        const normal = copy(
+          basicReview,
+          label + " · 일반배송 확인",
+          left,
+          y + rects[0].height + rects[1].height + 2 * GUTTER
+        );
+        const [paidRow, basicRow, paidState, basicState, continueButton] = paths.map((path) => atPath(frame, path));
+        await setChoice(paidState, false);
+        await setChoice(basicState, true);
+        const dest = /* @__PURE__ */ new Map([
+          [shipping.id, frame.id],
+          [fastReview.id, fast.id],
+          [basicReview.id, normal.id]
+        ]);
+        await wireCopies(
+          [frame, fast, normal],
+          { paid: paidRow, basic: basicRow, next: continueButton },
+          dest,
+          fast.id,
+          normal.id
+        );
+        if (kind === "layout") compareOptions(api, paidRow, basicRow, owned);
+        starts.push({ nodeId: frame.id, name: label });
+        results[kind] = { frameId: frame.id, fastReviewId: fast.id, basicReviewId: normal.id };
+      }
+      if (api.currentPage.id !== page.id) throw Error("디자인을 만드는 동안 페이지가 변경되었습니다.");
+      const generatedIds = new Set(owned.map((n) => n.id));
+      page.flowStartingPoints = [...page.flowStartingPoints.filter((p) => !generatedIds.has(p.nodeId)), ...starts];
+      return results;
+    } catch (error) {
+      for (const node of owned.reverse()) if (!node.removed) node.remove();
+      throw error;
+    }
   }
 
   // src/main.js
@@ -834,7 +1304,9 @@
       transitionCount: journey.transitions.length,
       canConfirmStart: !journey.flow_start_confirmed,
       warnings: journey.warnings || [],
-      findings
+      findings,
+      shipping: readShippingScenario(journey, figma.currentPage.id),
+      hasFastShipping: hasFastShipping(journey)
     };
-  });
+  }, createShippingDesigns);
 })();

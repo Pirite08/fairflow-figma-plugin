@@ -12,7 +12,7 @@ function ref(state, node) {
   return {state_id: state.state_id, node_id: node.node_id};
 }
 
-function money(node) {
+export function money(node) {
   if (Number.isSafeInteger(node.amount_krw)) return node.amount_krw;
   const values = node.text.match(/₩\s*[\d,]+(?:\s*원)?|[\d,]+\s*원/g);
   return values?.length === 1 ? Number(values[0].replace(/[^\d]/g, "")) : null;
@@ -23,11 +23,11 @@ const compact = value => value.replace(/\s+/g, "").toLowerCase();
 const control = node => ["checkbox", "radio", "toggle", "switch"].includes(node.role);
 const button = node => ["button", "link"].includes(node.role);
 const feeText = /배송비|빠른\s*배송|포장비|예약\s*수수료|서비스\s*요금|이용\s*수수료|수수료|발권비/;
-const totalText = /결제\s*(?:예정\s*)?(?:금액|총액)|총\s*(?:결제|금액|합계)|최종\s*(?:가격|금액)|주문\s*합계/;
+export const totalText = /결제\s*(?:예정\s*)?(?:금액|총액)|총\s*(?:결제|금액|합계)|최종\s*(?:가격|금액)|주문\s*합계/;
 
 // Figma price rows often use separate label and value layers. Pair only a
 // unique two-text sibling row and retain both source IDs for canvas focus.
-function joinPriceRows(state) {
+export function joinPriceRows(state) {
   const byParent = new Map(), joined = new Map();
   for (const n of state.nodes) {
     if (n.role !== "text" || !n.parent_id) continue;

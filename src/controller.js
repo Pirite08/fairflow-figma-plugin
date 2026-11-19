@@ -1,5 +1,8 @@
+import { createShippingPanel } from "./shipping-panel.js";
+import { shippingQuote } from "./shipping.js";
+
 // The inspected frame stays pinned when a designer selects an evidence layer.
-export function startPanel(api, inspectFrame) {
+export function startPanel(api, inspectFrame, makeShippingDesigns) {
   let rootId = null;
   let generation = 0;
   const evidenceByState = new Map();
@@ -12,8 +15,13 @@ export function startPanel(api, inspectFrame) {
     const selection = api.currentPage.selection;
     return selection.length === 1 && selection[0].type === "FRAME" ? selection[0] : null;
   };
+  const shipping = makeShippingDesigns && createShippingPanel({
+    api, inspectFrame, makeShippingDesigns, post, revealNodes,
+    context: () => ({ rootId, generation, confirmed: Boolean(rootId && confirmedRootId === rootId) })
+  });
 
   async function scan(useSelection) {
+    if (shipping?.busy) return;
     const version = ++generation;
     evidenceByState.clear();
     canConfirmStart = false;
@@ -38,12 +46,36 @@ export function startPanel(api, inspectFrame) {
           evidenceByState.get(item.state_id).add(item.node_id);
         }
       }
-      post("result", result);
+      const { shipping: spec, hasFastShipping, ...report } = result;
+      post("result", {
+        ...report,
+        rootId: frame.id,
+        ...(shipping ? {
+          shipping: spec ? shippingQuote(spec) : null,
+          shippingIssue: hasFastShipping && !spec
+            ? "여정의 시작점을 확인하고, 일반·빠른배송과 기본 진행 버튼을 총액이 표시된 주문 확인 화면에 각각 연결하세요."
+            : null
+        } : {})
+      });
+      shipping?.showExisting(frame.id);
     } catch (error) {
       if (generation !== version) return;
       console.error("FairFlow scan", error);
       post("error", { message: "프레임을 읽는 중 오류가 발생했습니다. 프레임을 선택하고 다시 검사하세요." });
     }
+  }
+
+  async function revealNodes(ids, version) {
+    const nodes = await Promise.all(ids.map(id => api.getNodeByIdAsync(id)));
+    if (generation !== version) return;
+    if (nodes.some(node => !node || node.removed)) throw Error("레이어가 삭제되었습니다. 다시 검사하세요.");
+    let page = nodes[0].parent;
+    while (page && page.type !== "PAGE") page = page.parent;
+    if (!page) return;
+    if (page.id !== api.currentPage.id) await api.setCurrentPageAsync(page);
+    if (generation !== version) return;
+    api.currentPage.selection = nodes;
+    api.viewport.scrollAndZoomIntoView(nodes);
   }
 
   async function focus({ state_id, node_id }) {
@@ -53,21 +85,11 @@ export function startPanel(api, inspectFrame) {
       return;
     }
     try {
-      const node = await api.getNodeByIdAsync(node_id);
+      await revealNodes([node_id], version);
+    } catch (error) {
       if (generation !== version) return;
-      if (!node || node.removed) {
-        post("notice", { message: "레이어가 삭제되었습니다. 다시 검사하세요." });
-        return;
-      }
-      let page = node.parent;
-      while (page && page.type !== "PAGE") page = page.parent;
-      if (!page) return;
-      if (page.id !== api.currentPage.id) await api.setCurrentPageAsync(page);
-      if (generation !== version) return;
-      api.currentPage.selection = [node];
-      api.viewport.scrollAndZoomIntoView([node]);
-    } catch {
-      post("notice", { message: "레이어를 열 수 없습니다. 프레임을 다시 검사하세요." });
+      post("notice", { message: error.message === "레이어가 삭제되었습니다. 다시 검사하세요."
+        ? error.message : "레이어를 열 수 없습니다. 프레임을 다시 검사하세요." });
     }
   }
 
@@ -89,6 +111,12 @@ export function startPanel(api, inspectFrame) {
         break;
       case "focus":
         return focus(message);
+      case "shipping-create":
+      case "shipping-rescan":
+        return shipping?.update(message.type === "shipping-create");
+      case "shipping-focus":
+      case "shipping-overview":
+        return shipping?.focus(message);
     }
   };
   api.on("selectionchange", () => {

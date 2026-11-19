@@ -42,7 +42,7 @@ function rowIndicator(layer) {
   return labels ? indicator : null;
 }
 
-function parseSelection(value) {
+export function parseSelection(value) {
   if (typeof value === 'boolean') return value;
   if (typeof value !== 'string') return undefined;
   const token = value.trim().toLowerCase().replace(/[\s_-]/g, '');
@@ -51,12 +51,16 @@ function parseSelection(value) {
   return undefined;
 }
 
+export function isSelectionProperty(key) {
+  const name = key.split('#')[0].trim();
+  return /^(is[\s_-]?)?(checked|selected|선택|체크)(\s*여부)?$/i.test(name) ||
+    /^(selection|check state|선택 상태|state|상태)$/i.test(name);
+}
+
 function componentSelection(layer) {
   const properties = layer.componentProperties || {};
   for (const [key, property] of Object.entries(properties)) {
-    const name = key.split('#')[0].trim();
-    if (!/^(is[\s_-]?)?(checked|selected|선택|체크)(\s*여부)?$/i.test(name) &&
-        !/^(selection|check state|선택 상태|state|상태)$/i.test(name)) continue;
+    if (!isSelectionProperty(key)) continue;
     const value = parseSelection(property.value);
     if (value !== undefined) return value;
   }
