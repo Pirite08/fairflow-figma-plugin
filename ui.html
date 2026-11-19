@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FairFlow AI · 여정 점검</title>
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: Inter, "Malgun Gothic", system-ui, sans-serif;
+      color: #1c3029;
+      background: #f8f9f6;
+      font-size: 13px;
+      line-height: 1.55;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; height: 100vh; display: flex; flex-direction: column; }
+    h1, h2, h3, p { margin: 0; }
+    button { font: inherit; cursor: pointer; }
+    button:disabled { cursor: wait; opacity: .55; }
+    :focus-visible { outline: 3px solid #377ab6; outline-offset: 3px; }
+    button, summary { -webkit-tap-highlight-color: transparent; }
+    [hidden] { display: none !important; }
+    .masthead {
+      display: flex; align-items: center; justify-content: space-between; flex: none;
+      border-bottom: 1px solid #cfd8d1; background: #fff; padding: 11px 18px;
+    }
+    .brand { display: inline-flex; align-items: center; gap: 9px; font-size: 18px; font-weight: 750; letter-spacing: -.6px; }
+    .mark {
+      position: relative; width: 26px; height: 26px; border-radius: 7px; background: #214e3f;
+    }
+    .mark::before, .mark::after {
+      content: ""; position: absolute; height: 4px; background: #cbee9c;
+      transform: skewY(-25deg); border-radius: 1px;
+    }
+    .mark::before { left: 6px; top: 7px; width: 14px; }
+    .mark::after { left: 6px; top: 14px; width: 9px; }
+    .product { color: #4d6156; font-size: 12px; font-weight: 650; }
+    main { flex: 1; overflow: auto; min-height: 0; padding: 18px; scrollbar-gutter: stable; }
+    .summary {
+      padding: 16px; border: 1px solid #cddccc; border-radius: 10px; background: #edf3e9;
+    }
+    .eyebrow, .mini-heading { color: #46634e; font-size: 11px; font-weight: 700; }
+    h1 { font-size: 21px; letter-spacing: -.7px; line-height: 1.35; overflow-wrap: anywhere; }
+    .summary h1 { margin: 3px 0 5px; }
+    .counts { color: #405548; font-size: 12px; }
+    .confirm-start { margin-top: 11px; border-top: 1px solid #ccd9cb; padding-top: 9px; color: #43594a; font-size: 12px; }
+    .confirm-start button {
+      margin-top: 6px; border: 1px solid #a2b5a4; border-radius: 5px; padding: 5px 8px;
+      color: #2e523a; background: #fff; font-weight: 650;
+    }
+    .confirm-start button:hover { border-color: #74947d; }
+    .section-title { margin: 19px 0 9px; font-size: 15px; letter-spacing: -.35px; }
+    .finding {
+      margin-bottom: 8px; border: 1px solid #d4dcd5; border-radius: 9px; background: #fff;
+      --status-ink: #386348; --status-bg: #e5efe6;
+    }
+    .finding[data-status="risk_signal"] { --status-ink: #8d351f; --status-bg: #fae9df; }
+    .finding[data-status="needs_context"] { --status-ink: #705016; --status-bg: #f5edcf; }
+    summary { cursor: pointer; list-style: none; }
+    summary::-webkit-details-marker { display: none; }
+    .finding > summary {
+      display: grid; grid-template-columns: minmax(0, 1fr) auto 7px;
+      align-items: center; gap: 8px; padding: 12px;
+    }
+    .finding > summary::after, .warnings summary::after {
+      content: ""; width: 6px; height: 6px; border-right: 1.5px solid #708174;
+      border-bottom: 1.5px solid #708174; transform: rotate(45deg);
+    }
+    .finding[open] > summary::after, .warnings[open] summary::after { transform: rotate(225deg); }
+    .pattern { font-size: 14px; font-weight: 730; letter-spacing: -.35px; overflow-wrap: anywhere; }
+    .badge { color: var(--status-ink); background: var(--status-bg); padding: 2px 7px; border-radius: 4px; font-size: 11px; font-weight: 700; }
+    .finding-body { padding: 0 12px 13px; overflow-wrap: anywhere; }
+    .finding-body h3 { margin-bottom: 3px; font-size: 13px; font-weight: 650; }
+    .reason { color: #435349; }
+    .suggestion { margin-top: 10px; padding: 8px 10px; border-left: 2px solid #98b99c; background: #f2f6f0; }
+    .evidence { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 5px; }
+    .evidence .mini-heading { flex-basis: 100%; color: #53665a; }
+    .layer {
+      display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 4px 7px;
+      border: 1px solid #ced8cf; border-radius: 4px; color: #284c3a; background: #fff; font-size: 12px;
+    }
+    .layer:hover { background: #edf3e9; border-color: #87a58c; }
+    .layer::before { content: ""; flex: none; width: 7px; height: 7px; border: 1px solid currentColor; transform: rotate(45deg); }
+    .layer-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .warnings { margin-top: 12px; color: #695228; font-size: 12px; }
+    .warnings summary { display: flex; align-items: center; gap: 7px; font-weight: 700; }
+    .warnings ul { margin: 6px 0 0; padding-left: 18px; }
+    .warnings li { overflow-wrap: anywhere; }
+    .message { margin: 10px 0; padding: 19px 15px; border: 1px solid #d5ded3; border-radius: 9px; background: #fff; }
+    .message h1 { margin: 0 0 7px; }
+    .message p { color: #475a4c; }
+    footer { flex: none; background: #fff; border-top: 1px solid #d4dcd5; padding: 10px 18px; }
+    .actions { display: flex; gap: 8px; }
+    .actions button { flex: 1; min-height: 38px; border-radius: 6px; font-weight: 700; }
+    .primary { color: #fff; border: 1px solid #234c39; background: #28563f; }
+    .primary:hover { background: #1d4632; }
+    .secondary { color: #294d3a; background: #fff; border: 1px solid #b9c9bc; }
+    .secondary:hover { background: #f1f5ee; }
+    #notice:not(:empty) { margin: 0 0 7px; padding: 5px 7px; color: #365442; background: #edf3e9; border-radius: 4px; }
+    .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  </style>
+</head>
+<body>
+  <header class="masthead">
+    <div class="brand"><span class="mark" aria-hidden="true"></span>FairFlow AI</div>
+    <span class="product">여정 점검</span>
+  </header>
+  <main id="content" aria-label="여정 점검 결과"></main>
+  <p id="announcement" class="sr-only" role="status" aria-live="polite"></p>
+  <footer>
+    <p id="notice" role="status"></p>
+    <div class="actions">
+      <button id="scan-selection" class="primary" type="button">선택한 프레임 검사</button>
+      <button id="scan" class="primary" type="button" hidden>다시 검사</button>
+    </div>
+  </footer>
+  <script>
+    const content = document.getElementById('content');
+    const notice = document.getElementById('notice');
+    const announcement = document.getElementById('announcement');
+    const scan = document.getElementById('scan');
+    const scanSelection = document.getElementById('scan-selection');
+    const patternNames = {
+      paid_option_preselection: '특정옵션 사전선택',
+      misleading_visual_hierarchy: '잘못된 계층구조',
+      drip_pricing: '순차공개 가격책정'
+    };
+    const statuses = {
+      risk_signal: { label: '위험 신호', order: 0 },
+      needs_context: { label: '정보 부족', order: 1 },
+      signal_absent: { label: '신호 없음', order: 2 }
+    };
+
+    function send(message) {
+      parent.postMessage({ pluginMessage: message }, '*');
+    }
+
+    function element(tag, className, text) {
+      const item = document.createElement(tag);
+      if (className) item.className = className;
+      if (text) item.textContent = text;
+      return item;
+    }
+
+    function showControls(canRescan, busy) {
+      scan.hidden = !canRescan;
+      scan.disabled = busy;
+      scanSelection.disabled = busy;
+      scanSelection.className = canRescan ? 'secondary' : 'primary';
+    }
+
+    function showMessage(title, body, loading = false) {
+      const section = element('section', 'message');
+      section.append(element('h1', '', title), element('p', '', body));
+      content.replaceChildren(section);
+      content.setAttribute('aria-busy', String(loading));
+      announcement.textContent = title;
+      notice.textContent = '';
+      showControls(false, loading);
+    }
+
+    function findingCard(finding) {
+      const status = Object.hasOwn(statuses, finding.status) ? finding.status : 'needs_context';
+      const pattern = Object.hasOwn(patternNames, finding.pattern) ? patternNames[finding.pattern] : finding.title;
+      const card = element('details', 'finding');
+      card.dataset.status = status;
+      card.open = status === 'risk_signal';
+      const summary = element('summary');
+      summary.append(element('span', 'pattern', pattern), element('span', 'badge', statuses[status].label));
+      const body = element('div', 'finding-body');
+      if (finding.title && finding.title !== pattern) body.append(element('h3', '', finding.title));
+      body.append(element('p', 'reason', finding.reason));
+      if (finding.suggestion) {
+        const suggestion = element('div', 'suggestion');
+        const label = status === 'needs_context' ? '확인할 내용' : '수정 제안';
+        suggestion.append(element('p', 'mini-heading', label), element('p', '', finding.suggestion));
+        body.append(suggestion);
+      }
+      if (finding.evidence && finding.evidence.length) {
+        const evidence = element('div', 'evidence');
+        evidence.append(element('p', 'mini-heading', '근거 레이어'));
+        finding.evidence.forEach(ref => {
+          const name = ref.label || ('레이어 ' + ref.node_id);
+          const button = element('button', 'layer');
+          button.type = 'button';
+          button.title = name + ' 레이어로 이동';
+          button.setAttribute('aria-label', button.title);
+          button.append(element('span', 'layer-text', name));
+          button.addEventListener('click', () => send({ type: 'focus', state_id: ref.state_id, node_id: ref.node_id }));
+          evidence.append(button);
+        });
+        body.append(evidence);
+      }
+      card.append(summary, body);
+      return card;
+    }
+
+    function showResult(result) {
+      const summary = element('section', 'summary');
+      const counts = '화면 ' + result.stateCount + '개 · 연결 ' + result.transitionCount + '개';
+      summary.append(element('p', 'eyebrow', '검사 시작 프레임'), element('h1', '', result.frameName), element('p', 'counts', counts));
+      if (result.canConfirmStart === true) {
+        const confirmation = element('div', 'confirm-start');
+        const button = element('button', '', '이 프레임을 여정 시작점으로 확인');
+        button.type = 'button';
+        button.addEventListener('click', () => send({ type: 'confirm-start' }));
+        confirmation.append(element('p', '', '선택한 프레임이 소비자가 처음 보는 구매·가입 화면일 때 확인하세요.'), button);
+        summary.append(confirmation);
+      }
+      const findings = [...result.findings].sort((a, b) => (statuses[a.status]?.order ?? 1) - (statuses[b.status]?.order ?? 1));
+      const section = element('section');
+      section.append(element('h2', 'section-title', '유형별 점검'));
+      findings.forEach(finding => section.append(findingCard(finding)));
+      if (!findings.length) section.append(element('p', '', '판단할 수 있는 항목이 없습니다.'));
+      content.replaceChildren(summary, section);
+      if (result.warnings && result.warnings.length) {
+        const warnings = element('details', 'warnings');
+        warnings.append(element('summary', '', '검사 범위 안내 ' + result.warnings.length + '건'));
+        const list = element('ul');
+        result.warnings.forEach(warning => list.append(element('li', '', warning)));
+        warnings.append(list);
+        content.append(warnings);
+      }
+      content.scrollTop = 0;
+      content.setAttribute('aria-busy', 'false');
+      notice.textContent = '';
+      const riskCount = findings.filter(finding => finding.status === 'risk_signal').length;
+      announcement.textContent = result.frameName + ' 검사 완료. 위험 신호 ' + riskCount + '건.';
+      showControls(true, false);
+    }
+
+    scan.addEventListener('click', () => send({ type: 'scan' }));
+    scanSelection.addEventListener('click', () => send({ type: 'scan-selection' }));
+    window.addEventListener('message', event => {
+      if (event.source !== parent) return;
+      const message = event.data && event.data.pluginMessage;
+      if (!message) return;
+      switch (message.type) {
+        case 'result': showResult(message); break;
+        case 'empty': showMessage('프레임을 선택하세요', message.message || 'Figma 캔버스에서 점검할 프레임을 하나 선택한 뒤 검사하세요.'); break;
+        case 'loading': showMessage('여정을 읽고 있습니다', message.message || '프레임의 레이어와 프로토타입 연결을 확인하고 있습니다.', true); break;
+        case 'error': showMessage('검사를 마치지 못했습니다', message.message || '시작 프레임을 선택한 뒤 다시 검사하세요.'); break;
+        case 'notice': notice.textContent = message.message || ''; break;
+      }
+    });
+    showMessage('프레임을 선택하세요', 'Figma 캔버스에서 점검할 프레임을 하나 선택한 뒤 검사하세요.');
+    send({ type: 'ready' });
+  </script>
+</body>
+</html>
