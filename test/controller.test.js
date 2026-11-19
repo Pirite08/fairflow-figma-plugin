@@ -80,6 +80,24 @@ test("an earlier slow scan cannot replace the new frame's results", async () => 
   assert.equal(messages.filter((message) => message.type === "result").length, 1);
 });
 
+test("an inspection failure exposes the pinned frame as its retry target", async () => {
+  const { api, page, frame, layer, messages } = host();
+  page.selection = [frame];
+  let attempt = 0;
+  startPanel(api, async root => {
+    if (++attempt === 2) throw Error("temporary read failure");
+    return report(root);
+  });
+  await api.ui.onmessage({ type: "scan-selection" });
+  await api.ui.onmessage({ type: "focus", node_id: layer.id, state_id: frame.id });
+  await api.ui.onmessage({ type: "scan" });
+  assert.equal(messages.at(-1).type, "error");
+  assert.equal(messages.at(-1).retryRootId, frame.id);
+  await api.ui.onmessage({ type: "scan" });
+  assert.equal(messages.at(-1).rootId, frame.id);
+  assert.deepEqual(page.selection, [layer]);
+});
+
 test("manual journey-start confirmation is scoped to the pinned frame", async () => {
   const { api, frame, page, frames } = host();
   const other = { ...frame, id: "another" };

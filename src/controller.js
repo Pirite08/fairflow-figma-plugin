@@ -10,6 +10,8 @@ export function startPanel(api, inspectFrame, makeShippingDesigns, proposalBuild
   const evidenceByState = new Map();
   let confirmedRootId = null;
   let canConfirmStart = false;
+  let priceContext = null;
+  let priceQuestionId = null;
   let ready = false;
 
   const post = (type, fields = {}) => api.ui.postMessage({ type, ...fields });
@@ -28,36 +30,46 @@ export function startPanel(api, inspectFrame, makeShippingDesigns, proposalBuild
   const shipping = makeShippingDesigns && createShippingPanel({ ...panelContext, makeShippingDesigns });
   const proposals = proposalBuilders && createProposalPanel({ ...panelContext, builders: proposalBuilders });
 
-  async function scan(useSelection) {
+  async function scan(useSelection, submission) {
     if (shipping?.busy || proposals?.busy) return;
     const version = ++generation;
     evidenceByState.clear();
     canConfirmStart = false;
+    priceQuestionId = null;
     try {
       const frame = useSelection || !rootId ? selectedFrame() : await api.getNodeByIdAsync(rootId);
       if (generation !== version) return;
       if (!frame || frame.removed || frame.type !== "FRAME") {
         rootId = null;
         confirmedRootId = null;
+        priceContext = null;
         post("empty", { message: "검사를 시작할 프레임 하나를 선택하세요." });
         return;
       }
-      if (rootId !== frame.id) confirmedRootId = null;
+      if (rootId !== frame.id) {
+        confirmedRootId = null;
+        priceContext = null;
+      }
       rootId = frame.id;
       post("loading", { message: frame.name + "의 레이어와 프로토타입 연결을 읽고 있습니다." });
-      const result = await inspectFrame(frame, confirmedRootId === frame.id);
+      const result = await inspectFrame(frame, confirmedRootId === frame.id, priceContext, submission);
       if (generation !== version) return;
       canConfirmStart = Boolean(result.canConfirmStart);
+      priceContext = result.priceContext ?? null;
+      priceQuestionId = result.priceInput?.question?.id ?? null;
+      const registerEvidence = ({ state_id, node_id }) => {
+        if (!evidenceByState.has(state_id)) evidenceByState.set(state_id, new Set());
+        evidenceByState.get(state_id).add(node_id);
+      };
       for (const finding of result.findings) {
-        for (const item of finding.evidence) {
-          if (!evidenceByState.has(item.state_id)) evidenceByState.set(item.state_id, new Set());
-          evidenceByState.get(item.state_id).add(item.node_id);
-        }
+        for (const item of finding.evidence) registerEvidence(item);
       }
-      const { shipping: spec, proposals: _specs, ...report } = result;
+      for (const { evidence } of result.priceInput?.observations ?? []) registerEvidence(evidence);
+      const { shipping: spec, proposals: _specs, priceContext: _priceContext, ...report } = result;
       post("result", {
         ...report,
         rootId: frame.id,
+        scanVersion: version,
         ...(proposals ? { proposals: proposalOffers(result) } : {}),
         ...(shipping ? { shipping: spec ? shippingQuote(spec) : null } : {})
       });
@@ -67,7 +79,10 @@ export function startPanel(api, inspectFrame, makeShippingDesigns, proposalBuild
     } catch (error) {
       if (generation !== version) return;
       console.error("FairFlow scan", error);
-      post("error", { message: "프레임을 읽는 중 오류가 발생했습니다. 프레임을 선택하고 다시 검사하세요." });
+      post("error", {
+        retryRootId: rootId,
+        message: rootId ? "프레임을 읽지 못했습니다. 다시 검사하세요." : "검사할 프레임을 선택하세요."
+      });
     }
   }
 
@@ -113,6 +128,19 @@ export function startPanel(api, inspectFrame, makeShippingDesigns, proposalBuild
       case "confirm-start":
         if (rootId && canConfirmStart) {
           confirmedRootId = rootId;
+          return scan(false);
+        }
+        break;
+      case "answer-price-fact":
+        if (rootId && message.rootId === rootId && message.scanVersion === generation &&
+            priceQuestionId && message.factId === priceQuestionId && ["yes", "no", "unknown"].includes(message.answer)) {
+          return scan(false, message);
+        }
+        break;
+      case "reset-price-facts":
+        if (rootId && message.rootId === rootId && message.scanVersion === generation &&
+            !shipping?.busy && !proposals?.busy && Object.keys(priceContext?.answers ?? {}).length) {
+          priceContext = null;
           return scan(false);
         }
         break;

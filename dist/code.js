@@ -331,7 +331,7 @@
         }
         const mandatory = (_b = spec == null ? void 0 : spec.mandatory) != null ? _b : /필수|의무|모든\s*(주문|구매)/.test(fee.text) ? true : null;
         const fixed = (_c = spec == null ? void 0 : spec.known_at_first_price) != null ? _c : /고정|정액|일괄|일률/.test(fee.text) ? true : null;
-        const pricing = mandatory === true && fixed === true ? {
+        const pricing2 = mandatory === true && fixed === true ? {
           first: ref(start, first),
           checkout: ref(checkout, total),
           fee: __spreadProps(__spreadValues({}, ref(checkout, fee)), { label: (_d = fee.text.match(feeText)) == null ? void 0 : _d[0], amount: feeAmount }),
@@ -348,8 +348,8 @@
             "첫 가격과 주문 명세가 계속 일치하는지 확인하세요.",
             proof
           );
-          checks.push(pricing ? __spreadProps(__spreadValues({}, result), { pricing }) : result);
-        } else if (pricing) {
+          checks.push(pricing2 ? __spreadProps(__spreadValues({}, result), { pricing: pricing2 }) : result);
+        } else if (pricing2) {
           checks.push(__spreadProps(__spreadValues({}, finding(
             pattern2,
             "risk_signal",
@@ -357,7 +357,7 @@
             "첫 가격에 총 " + won(finalAmount) + "을 표시하고 포함된 필수 비용을 함께 안내하세요.",
             proof
           )), {
-            pricing
+            pricing: pricing2
           }));
         } else {
           const explicit = selectedFeeOnPath(graph, start, checkout, fee, sameProduct);
@@ -556,11 +556,23 @@
     if (background) style.background_color = background;
     item.style = style;
   }
+  function struckRanges(layer) {
+    if (!/\d[\d,]*\s*원|(?:₩|KRW)\s*\d/i.test(layer.characters)) return [];
+    try {
+      if (typeof layer.getStyledTextSegments === "function") {
+        return layer.getStyledTextSegments(["textDecoration"]).filter((segment) => segment.textDecoration === "STRIKETHROUGH").map((segment) => [segment.start, segment.end]);
+      }
+      if (layer.textDecoration === "STRIKETHROUGH") return [[0, layer.characters.length]];
+    } catch (e) {
+    }
+    return [];
+  }
   function snapshot(frame, budget, warnings) {
     const nodes = [];
+    const priceTexts = [];
     const links = [];
     const origin = frame.absoluteBoundingBox || { x: 0, y: 0 };
-    function walk(layer, owner, parentOpacity, parentColor, clip2, depth) {
+    function walk2(layer, owner, parentOpacity, parentColor, clip2, depth) {
       var _a, _b;
       if (budget.layers === 0 || depth > MAX_DEPTH) {
         warnings.add("레이어 수 또는 중첩 깊이 한도에 도달해 일부 레이어를 생략했습니다.");
@@ -590,9 +602,9 @@
       const hasReactions = reactions.length > 0;
       const singleLabelHotspot = textLayer && owner && !owner.hasReactions && owner.onlyChildId === layer.id && !role;
       const embeddedIndicator = (owner == null ? void 0 : owner.indicatorId) === layer.id;
-      const isControl = !singleLabelHotspot && !embeddedIndicator && (role || hasReactions);
+      const isControl2 = !singleLabelHotspot && !embeddedIndicator && (role || hasReactions);
       let part = owner;
-      if ((isRoot ? hasReactions : isControl) || textLayer && !owner) {
+      if ((isRoot ? hasReactions : isControl2) || textLayer && !owner) {
         const item = normalizeLayer(layer, isRoot ? "region" : role || (hasReactions ? "button" : "text"), origin, opacity, background);
         if (CHOICES.has(item.role)) {
           const selected = componentSelection(indicator || layer);
@@ -606,6 +618,13 @@
       if (textLayer && part) {
         const text = layer.characters.trim();
         if (text) {
+          const ranges = struckRanges(layer);
+          if (ranges.length) {
+            priceTexts.push(__spreadValues(__spreadProps(__spreadValues({}, normalizeLayer(layer, "text", origin, opacity, background)), {
+              text: layer.characters,
+              struck_ranges: ranges
+            }), owner === part && ["button", "link"].includes(part.item.role) ? { control_node_id: part.item.node_id } : {}));
+          }
           part.labels.push(text);
           if (text.length > part.longest) {
             part.longest = text.length;
@@ -630,25 +649,26 @@
           warnings.add("레이어 수 또는 중첩 깊이 한도에 도달해 일부 레이어를 생략했습니다.");
           break;
         }
-        walk(child, activeOwner, opacity, background, nextClip, depth + 1);
+        walk2(child, activeOwner, opacity, background, nextClip, depth + 1);
       }
     }
-    walk(frame, null, 1, void 0, null, 0);
+    walk2(frame, null, 1, void 0, null, 0);
     return {
-      state: {
+      state: __spreadProps(__spreadValues({
         state_id: frame.id,
         frame_id: frame.id,
-        name: frame.name,
+        name: frame.name
+      }, priceTexts.length ? { price_texts: priceTexts } : {}), {
         nodes: nodes.filter((part) => part.labels.length || part.hasTrigger || CHOICES.has(part.item.role)).map(({ item, labels }) => {
           item.text = labels.join(" ");
-          const amount = priceFromText(item.text);
-          if (amount !== void 0) item.amount_krw = amount;
+          const amount3 = priceFromText(item.text);
+          if (amount3 !== void 0) item.amount_krw = amount3;
           if (CHOICES.has(item.role) && item.checked === void 0 && /^[☐☑☒]/u.test(item.text)) {
             item.checked = item.text[0] !== "☐";
           }
           return item;
         })
-      },
+      }),
       links
     };
   }
@@ -681,13 +701,14 @@
     let examined = 0;
     for (let i = 0; i < frames.length && budget.layers > 0; i++) {
       const frame = frames[i];
-      const { state, links } = snapshot(frame, budget, warnings);
+      const frameWarnings = /* @__PURE__ */ new Set();
+      const { state, links } = snapshot(frame, budget, frameWarnings);
       states.push(state);
       for (const { nodeId, triggerNodeId, reaction } of links) {
         const actions = reaction.actions || (reaction.action ? [reaction.action] : []);
-        for (const edge of destinations(actions, warnings)) {
+        for (const edge of destinations(actions, frameWarnings)) {
           if (++examined > MAX_CONNECTIONS) {
-            warnings.add("프로토타입 연결 수 한도에 도달해 일부 경로를 생략했습니다.");
+            frameWarnings.add("프로토타입 연결 수 한도에 도달해 일부 경로를 생략했습니다.");
             break;
           }
           if (!resolved.has(edge.id)) {
@@ -700,19 +721,19 @@
           }
           const target = resolved.get(edge.id);
           if (!target || !SCREEN_TYPES.has(target.type) || target.visible === false) {
-            warnings.add("목적 화면이 삭제되었거나 표시 상태를 읽을 수 없는 연결이 있습니다.");
+            frameWarnings.add("목적 화면이 삭제되었거나 표시 상태를 읽을 수 없는 연결이 있습니다.");
             continue;
           }
           if (!queued.has(target.id)) {
             if (frames.length >= MAX_STATES) {
-              warnings.add("연결된 화면 수 한도에 도달해 일부 경로를 생략했습니다.");
+              frameWarnings.add("연결된 화면 수 한도에 도달해 일부 경로를 생략했습니다.");
               continue;
             }
             queued.add(target.id);
             frames.push(target);
           }
           const clicked = ((_a = reaction.trigger) == null ? void 0 : _a.type) === "ON_CLICK";
-          if (!clicked) warnings.add("클릭 이외의 트리거로 이어지는 경로는 실제 실행 조건을 확인해야 합니다.");
+          if (!clicked) frameWarnings.add("클릭 이외의 트리거로 이어지는 경로는 실제 실행 조건을 확인해야 합니다.");
           transitions.push(__spreadValues({
             transition_id: "t" + (transitions.length + 1),
             from_state_id: frame.id,
@@ -725,6 +746,10 @@
         }
         if (examined > MAX_CONNECTIONS) break;
       }
+      if (frameWarnings.size) {
+        state.read_warnings = [...frameWarnings];
+        for (const warning of frameWarnings) warnings.add(warning);
+      }
     }
     if (states.length < frames.length) warnings.add("레이어 한도에 도달해 일부 연결 화면을 읽지 못했습니다.");
     const captured = new Set(states.map((s) => s.state_id));
@@ -736,6 +761,370 @@
       warnings: [...warnings]
     };
   }
+
+  // src/model-features.js
+  var preselection2 = "paid_option_preselection";
+  var hierarchy = "misleading_visual_hierarchy";
+  var pricing = "drip_pricing";
+  var FEATURE_NAMES = {
+    [preselection2]: ["initial_checked_share", "explicit_paid_selection"],
+    [hierarchy]: ["area_log_ratio", "font_log_ratio", "contrast_log_ratio", "basic_log_contrast", "opacity_difference", "basic_opacity"],
+    [pricing]: ["price_increase_fraction", "first_price_matches_total", "required_fixed_fee_fraction", "fee_visible_at_first_price", "explicit_optional_selection"]
+  };
+  var isControl = (node) => ["radio", "checkbox", "switch", "toggle"].includes(node.role);
+  var isButton = (node) => ["button", "link"].includes(node.role);
+  var compact2 = (text) => text.replace(/[^\p{L}\d]/gu, "").toLowerCase();
+  var allFees = /배송비|빠른\s*배송|포장비|수수료|서비스\s*요금|발권비|이용료|처리비|접수비|발급비|관리비/;
+  var amountSyntax = /(?:₩|KRW)\s*\d[\d,]*(?:\s*원)?|\d[\d,]*\s*원/gi;
+  function amount(node) {
+    var _a, _b;
+    const text = node.text;
+    if (/[\d,]\s*[~–-]\s*[₩\d]/.test(text) || ((_a = text.match(amountSyntax)) == null ? void 0 : _a.length) !== 1) return null;
+    return (_b = money(node)) != null ? _b : Number(text.match(amountSyntax)[0].replace(/\D/g, ""));
+  }
+  function walk(graph, start, follow = () => true) {
+    if (!start) return [];
+    const states = [start];
+    const seen = new Set(states);
+    for (const state of states) {
+      for (const edge of graph.next(state)) {
+        if (edge.uncertain || seen.has(edge.destination) || !follow(state, edge)) continue;
+        states.push(edge.destination);
+        seen.add(edge.destination);
+      }
+    }
+    return states;
+  }
+  function createGraph(input) {
+    var _a, _b, _c;
+    const byId = new Map(input.states.map((state) => [state.state_id, joinPriceRows(state)]));
+    const nodes = new Map([...byId.values()].map((state) => [state, new Map(state.nodes.map((node) => [node.node_id, node]))]));
+    const edges = new Map([...byId.values()].map((state) => [state, []]));
+    for (const transition of input.transitions) {
+      const source = byId.get(transition.from_state_id);
+      const destination = byId.get(transition.to_state_id);
+      const action = (_b = nodes.get(source)) == null ? void 0 : _b.get((_a = transition.action) == null ? void 0 : _a.node_id);
+      if (!action || action.enabled === false) continue;
+      const uncertain = transition.uncertain || transition.action.type !== "click" || !destination;
+      edges.get(source).push({ action, destination, uncertain });
+    }
+    const entry = byId.get(input.entry_state_id);
+    const confirmed = Boolean(entry && ((_c = input.flow_start_confirmed) != null ? _c : true));
+    const graph = { entry, confirmed, next: (state) => edges.get(state) };
+    graph.states = walk(graph, entry);
+    return graph;
+  }
+  var paidCue = /유료|빠른\s*배송|새벽\s*배송|보장\s*추가|(?:추가|부가|선택)\s*(?:옵션|서비스|보장|상품)|선물\s*포장|설치\s*옵션/;
+  function isPaidOption(node, state) {
+    if (!isControl(node) || !(amount(node) > 0)) return false;
+    const freeAlternative = state.nodes.some((other) => other !== node && isControl(other) && (amount(other) === 0 || /무료|추가\s*없음/.test(other.text)));
+    return paidCue.test(node.text) || /\+\s*(?:₩\s*)?\d/.test(node.text) && freeAlternative;
+  }
+  var optionName2 = (node) => compact2(node.text.replace(amountSyntax, "").replace(/무료|선택\s*서비스|추가\s*요금/g, ""));
+  var mentionsOption = (node, option) => {
+    const name = optionName2(option);
+    return name.length > 1 && optionName2(node).includes(name);
+  };
+  function choosesOption(node, option) {
+    return mentionsOption(node, option) && (isControl(node) || isButton(node) && amount(node) === amount(option) && /선택|추가|신청/.test(node.text));
+  }
+  function optionFeatures(graph) {
+    if (!graph.confirmed) return null;
+    const initial = [];
+    let explicit = false;
+    for (const state of graph.states) {
+      for (const option of state.nodes.filter((node) => isPaidOption(node, state))) {
+        const firstExposure = walk(graph, graph.entry, (prior) => !prior.nodes.some((node) => isControl(node) && mentionsOption(node, option)));
+        if (firstExposure.includes(state)) {
+          const beforeChoice = walk(graph, graph.entry, (prior, edge) => !prior.nodes.some((node) => isControl(node) && mentionsOption(node, option)) && !choosesOption(edge.action, option));
+          if (beforeChoice.includes(state)) initial.push(option.checked);
+        }
+        if (option.checked === true && graph.states.some((prior) => graph.next(prior).some((edge) => !edge.uncertain && edge.destination === state && edge.action.checked !== true && choosesOption(edge.action, option)))) {
+          explicit = true;
+        }
+      }
+    }
+    if (initial.some((value) => typeof value !== "boolean") || !initial.length && !explicit) return null;
+    return [initial.length ? initial.filter(Boolean).length / initial.length : 0, Number(explicit)];
+  }
+  var basicCopy = /(?:기본|일반|표준).*(?:계속|진행|이용|선택)|(?:무료|그대로)로?\s*계속|(?:추가|가입|구매|동의)\s*없이|가입하지\s*않|나중에|거절|거부|해지|탈퇴|필수만|동의하지|건너뛰|구독\s*취소/;
+  var promotedCopy = /추가|전체\s*동의|가입|유료|구매|구독\s*유지|이용권\s*변경|혜택.*받|체험\s*시작|업그레이드|프리미엄|수락|허용|멤버십/;
+  function buttonMetrics(node) {
+    var _a, _b;
+    const { text_color, background_color, font_size_px, opacity = 1 } = (_a = node.style) != null ? _a : {};
+    const fg = luminance(text_color), bg = luminance(background_color);
+    const { width, height } = (_b = node.bounds) != null ? _b : {};
+    if (fg === null || bg === null || ![font_size_px, width, height, opacity].every(Number.isFinite) || font_size_px <= 0 || width <= 0 || height <= 0 || opacity < 0 || opacity > 1) return null;
+    const contrast2 = (Math.max(fg, bg) + 0.05) / (Math.min(fg, bg) + 0.05);
+    return { area: width * height, font: font_size_px, contrast: contrast2, opacity };
+  }
+  function destinationOf(graph, state, node) {
+    const links = graph.next(state).filter((edge) => edge.action === node);
+    const destinations2 = new Set(links.map((edge) => edge.destination));
+    return !links.some((edge) => edge.uncertain) && destinations2.size === 1 ? links[0].destination : null;
+  }
+  function hierarchyFeatures(graph) {
+    var _a;
+    const pairs = [];
+    for (const state of graph.states) {
+      const buttons = state.nodes.filter(isButton);
+      const basics = buttons.filter((node) => basicCopy.test(node.text));
+      const promoted = buttons.filter((node) => !basics.includes(node) && promotedCopy.test(node.text));
+      if (!basics.length || !promoted.length) continue;
+      if (basics.length !== 1 || promoted.length !== 1) return null;
+      const strong = destinationOf(graph, state, promoted[0]);
+      const weak = destinationOf(graph, state, basics[0]);
+      const a = buttonMetrics(promoted[0]), b = buttonMetrics(basics[0]);
+      if (!strong || !weak || strong === weak || !a || !b) return null;
+      pairs.push([
+        Math.log2(a.area / b.area),
+        Math.log2(a.font / b.font),
+        Math.log2(a.contrast / b.contrast),
+        Math.log2(b.contrast),
+        a.opacity - b.opacity,
+        b.opacity
+      ]);
+    }
+    const emphasisGap = ([area, font, contrast2, , opacity]) => [area, font, contrast2, opacity].reduce((total, difference) => total + Math.max(0, difference), 0);
+    return (_a = pairs.sort((a, b) => emphasisGap(b) - emphasisGap(a))[0]) != null ? _a : null;
+  }
+  var firstPriceNode = (state) => offerPrice(__spreadProps(__spreadValues({}, state), { nodes: state.nodes.filter((node) => !(allFees.test(node.text) && !feeText.test(node.text) && !/포함/.test(node.text))) }));
+  var productLabel = (state) => {
+    var _a;
+    return (_a = state.nodes.find((node) => /^(?:상품명|상품\s*코드|SKU)\s*[:：]/i.test(node.text))) == null ? void 0 : _a.text.split(/[:：]/).slice(1).join(":").trim();
+  };
+  var feeKind = (node) => {
+    var _a, _b;
+    return compact2((_b = (_a = node.text.match(allFees)) == null ? void 0 : _a[0]) != null ? _b : "");
+  };
+  function explicitlySelected(graph, start, checkout, fee, followsOrder) {
+    const sameFee = (node) => amount(node) === amount(fee) && (mentionsOption(fee, node) || feeKind(node) && feeKind(node) === feeKind(fee));
+    const choseFee = ({ action, destination }) => isControl(action) && action.checked === false && sameFee(action) && destination.nodes.some((node) => isControl(node) && node.checked === true && sameFee(node));
+    return !walk(graph, start, (state, edge) => followsOrder(state, edge) && !choseFee(edge)).includes(checkout);
+  }
+  function priceComparison(graph, start, first, checkout, total, followsOrder) {
+    const firstAmount = amount(first), totalAmount = amount(total);
+    if (firstAmount === null || !(totalAmount > 0) || firstAmount > totalAmount) return null;
+    const fees = checkout.nodes.filter((node) => node !== total && node.role === "text" && allFees.test(node.text) && amount(node) > 0);
+    const baseAmounts = new Set(checkout.nodes.filter((node) => node !== total && !allFees.test(node.text) && /상품|기본\s*요금|소계|객실\s*요금|티켓\s*요금|이용권/.test(node.text) && amount(node) !== null).map(amount));
+    const feeSum = fees.reduce((sum, fee) => sum + amount(fee), 0);
+    const difference = totalAmount - firstAmount;
+    if (baseAmounts.size > 1 || baseAmounts.size === 1 && [...baseAmounts][0] + feeSum !== totalAmount || difference > feeSum) return null;
+    let required = 0, disclosed = 0, optedIn = 0;
+    const relatedStates = walk(graph, start, followsOrder).filter((state) => walk(graph, state, followsOrder).includes(checkout));
+    for (const fee of fees) {
+      const kind = feeKind(fee);
+      const matches = (node) => feeKind(node) === kind;
+      const description = relatedStates.flatMap((state) => state.nodes.filter(matches).map((node) => node.text)).join(" · ");
+      const variable = uncertainFee.test(description) || /추후\s*(?:확정|안내)|별도\s*(?:결정|계산)|현장\s*결정/.test(description);
+      const mandatory = /필수|의무|모든\s*(?:주문|구매|예약)|전\s*(?:고객|주문)/.test(description) && !variable;
+      const fixed = /고정|정액|일괄|일률/.test(description) && !variable;
+      const selected = !mandatory && explicitlySelected(graph, start, checkout, fee, followsOrder);
+      if (mandatory && fixed) required += amount(fee);
+      if (selected) optedIn += amount(fee);
+      if (start.nodes.some((node) => matches(node) && (amount(node) === amount(fee) || /포함/.test(node.text)))) disclosed += amount(fee);
+    }
+    if (difference > required + optedIn) return null;
+    return pricingVector(firstAmount, totalAmount, feeSum, required, disclosed, optedIn);
+  }
+  function pricingFeatures(graph) {
+    var _a;
+    if (!graph.confirmed) return null;
+    const totals = /* @__PURE__ */ new Map();
+    for (const state of graph.states) {
+      const nodes = state.nodes.filter((node) => totalText.test(node.text) && amount(node) !== null);
+      if (nodes.length === 1) totals.set(state, nodes[0]);
+    }
+    const firstStates = walk(graph, graph.entry, (state) => !state.nodes.some((node) => amount(node) !== null));
+    const comparisons = [];
+    for (const start of firstStates) {
+      const first = firstPriceNode(start);
+      if (!first || totals.has(start)) continue;
+      const product = productLabel(start);
+      const followsOrder = (state, { action, destination }) => !(state === start && first.offer_action_id && action.node_id !== first.offer_action_id) && !(product && productLabel(destination) && productLabel(destination) !== product) && !/다른\s*(?:상품|요금제)/.test(action.text);
+      for (const checkout of walk(graph, start, followsOrder)) {
+        const total = totals.get(checkout);
+        if (!total) continue;
+        const comparison = priceComparison(graph, start, first, checkout, total, followsOrder);
+        if (!comparison) return null;
+        comparisons.push(comparison);
+      }
+    }
+    const orderIncrease = ([increase, , , , selected]) => increase * (selected ? 0 : 1);
+    return (_a = comparisons.sort((a, b) => orderIncrease(b) - orderIncrease(a))[0]) != null ? _a : null;
+  }
+  function pricingVector(first, total, feeSum, required, disclosed, optedIn) {
+    const difference = total - first;
+    return [
+      difference / total,
+      Number(!difference),
+      required / total,
+      feeSum ? disclosed / feeSum : 0,
+      Number(optedIn > 0)
+    ];
+  }
+  function extractModelFeatures(input, includePricing = true) {
+    var _a;
+    const graph = createGraph(input);
+    const complete = !((_a = input.warnings) == null ? void 0 : _a.length);
+    const measures = {
+      [preselection2]: complete ? optionFeatures(graph) : null,
+      [hierarchy]: complete ? hierarchyFeatures(graph) : null,
+      [pricing]: complete && includePricing ? pricingFeatures(graph) : null
+    };
+    return Object.fromEntries(Object.entries(FEATURE_NAMES).map(([pattern2, names]) => {
+      const values = measures[pattern2];
+      const observed = Boolean(values == null ? void 0 : values.every(Number.isFinite));
+      return [pattern2, { observed, values: observed ? values : names.map(() => 0) }];
+    }));
+  }
+
+  // src/model.js
+  var MODEL_PATTERNS = Object.keys(FEATURE_NAMES);
+  var modelThreshold = 0.5;
+  function sigmoid(logit) {
+    return 1 / (1 + Math.exp(-logit));
+  }
+  function predictLogistic(values, model) {
+    let logit = model.intercept;
+    for (let i = 0; i < values.length; i++) {
+      logit += model.weights[i] * (values[i] - model.means[i]) / model.scales[i];
+    }
+    return sigmoid(logit);
+  }
+  function ruleStatus(findings, pattern2) {
+    const matches = findings.filter((item) => item.pattern === pattern2);
+    if (matches.some((item) => item.status === "risk_signal")) return "risk_signal";
+    if (matches.length && matches.every((item) => item.status === "signal_absent")) return "signal_absent";
+    return "needs_context";
+  }
+  function compareDetectors(input, findings, models, priceInputScore) {
+    const features = extractModelFeatures(input, priceInputScore === void 0);
+    return MODEL_PATTERNS.map((pattern2) => {
+      const { values, observed } = features[pattern2];
+      const model = models[pattern2];
+      const score = pattern2 === "drip_pricing" && priceInputScore !== void 0 ? priceInputScore : observed && values.every(Number.isFinite) ? predictLogistic(values, model) : null;
+      const modelStatus = score === null ? "needs_context" : score >= modelThreshold ? "risk_signal" : "signal_absent";
+      return { pattern: pattern2, ruleStatus: ruleStatus(findings, pattern2), modelStatus, score };
+    });
+  }
+
+  // src/model-weights.json
+  var model_weights_default = {
+    version: 1,
+    settings: {
+      l2: 0.02,
+      iterations: 4e3,
+      threshold: 0.5
+    },
+    patterns: {
+      paid_option_preselection: {
+        features: [
+          "initial_checked_share",
+          "explicit_paid_selection"
+        ],
+        means: [
+          0.4814814815,
+          0.2592592593
+        ],
+        scales: [
+          0.4996569468,
+          0.4382281321
+        ],
+        weights: [
+          2.638434074,
+          -0.6192754035
+        ],
+        intercept: -0.2559343754,
+        training: {
+          risk: 13,
+          absent: 14,
+          needsContext: 13,
+          unobserved: []
+        }
+      },
+      misleading_visual_hierarchy: {
+        features: [
+          "area_log_ratio",
+          "font_log_ratio",
+          "contrast_log_ratio",
+          "basic_log_contrast",
+          "opacity_difference",
+          "basic_opacity"
+        ],
+        means: [
+          0.9825740621,
+          0.2952537348,
+          1.0366057389,
+          2.2021745264,
+          0.1288888889,
+          0.8711111111
+        ],
+        scales: [
+          0.7438225986,
+          0.2657603363,
+          1.2346543671,
+          1.2241151599,
+          0.1780830712,
+          0.1780830712
+        ],
+        weights: [
+          0.6578965151,
+          0.7633361735,
+          0.9390027587,
+          -0.9927465731,
+          0.7306456234,
+          -0.7306456234
+        ],
+        intercept: -0.3989438931,
+        training: {
+          risk: 13,
+          absent: 14,
+          needsContext: 13,
+          unobserved: []
+        }
+      },
+      drip_pricing: {
+        features: [
+          "price_increase_fraction",
+          "first_price_matches_total",
+          "required_fixed_fee_fraction",
+          "fee_visible_at_first_price",
+          "explicit_optional_selection"
+        ],
+        means: [
+          0.0493084079,
+          0.5,
+          0.0656972382,
+          0.1538461538,
+          0.0384615385
+        ],
+        scales: [
+          0.0537439854,
+          0.5,
+          0.0497928161,
+          0.3608012123,
+          0.1923076923
+        ],
+        weights: [
+          0.98226124,
+          -1.9500125594,
+          0.5458573087,
+          -0.5020135001,
+          -1.0186322974
+        ],
+        intercept: -0.2446318933,
+        training: {
+          risk: 12,
+          absent: 14,
+          needsContext: 13,
+          unobserved: [
+            "ff-009"
+          ]
+        }
+      }
+    }
+  };
 
   // src/proposal-frames.js
   var GUTTER = 96;
@@ -850,12 +1239,12 @@
   async function cloneProposal(api, spec, editVariant) {
     const { source, copyFrame, finish, rollback, own } = await openCopySession(api, spec);
     try {
-      const reference = copyFrame(source[0], "원본 · 생성 시점");
+      const reference2 = copyFrame(source[0], "원본 · 생성 시점");
       const referenceById = /* @__PURE__ */ new Map(), referenceSources = [];
-      indexCopy(source[0], reference, referenceById, referenceSources);
+      indexCopy(source[0], reference2, referenceById, referenceSources);
       await wireCopies(referenceSources, referenceById);
-      const result = { referenceFrameId: reference.id };
-      const columns = [[reference]];
+      const result = { referenceFrameId: reference2.id };
+      const columns = [[reference2]];
       const starts = [];
       for (const [kind, label2] of [["minimal", "최소 수정안"], ["layout", "배치 변경안"]]) {
         const { copies, byId } = await copyJourney(source, label2, copyFrame);
@@ -907,7 +1296,7 @@
     ["fast", "paidId", "빠른배송 선택"],
     ["continue", "continueId", "선택 없이 계속"]
   ];
-  var won2 = (amount) => String(amount).replace(/\B(?=(\d{3})+(?!\d))/g, ",") + "원";
+  var won2 = (amount3) => String(amount3).replace(/\B(?=(\d{3})+(?!\d))/g, ",") + "원";
   function assertPage(api, id) {
     if (api.currentPage.id !== id) throw Error("검사한 페이지로 돌아간 뒤 다시 겹쳐보세요.");
   }
@@ -1197,8 +1586,8 @@
   }
   function reviewTotal(state) {
     const label2 = state && only(joinPriceRows(state).nodes, (node) => totalText.test(node.text) && money(node) !== null);
-    const amount = label2 ? money(label2) : null;
-    return Number.isSafeInteger(amount) ? amount : null;
+    const amount3 = label2 ? money(label2) : null;
+    return Number.isSafeInteger(amount3) ? amount3 : null;
   }
   function readShippingScenario(journey, pageId) {
     var _a, _b;
@@ -1667,11 +2056,11 @@
   }
   function pricingContent(finding2) {
     var _a, _b;
-    const pricing = finding2.pricing;
-    const feeAmount = (_a = pricing == null ? void 0 : pricing.fee) == null ? void 0 : _a.amount;
-    const { firstAmount, finalAmount } = pricing || {};
+    const pricing2 = finding2.pricing;
+    const feeAmount = (_a = pricing2 == null ? void 0 : pricing2.fee) == null ? void 0 : _a.amount;
+    const { firstAmount, finalAmount } = pricing2 || {};
     const known = [firstAmount, finalAmount, feeAmount].every(Number.isSafeInteger) && firstAmount >= 0 && feeAmount > 0 && firstAmount + feeAmount === finalAmount;
-    const fee = "필수 " + (((_b = pricing == null ? void 0 : pricing.fee) == null ? void 0 : _b.label) || "비용");
+    const fee = "필수 " + (((_b = pricing2 == null ? void 0 : pricing2.fee) == null ? void 0 : _b.label) || "비용");
     const copy = known && editableCopy(finding2.copyEdit);
     return {
       headline: "첫 가격에 필수 비용이 빠져 있습니다",
@@ -1723,6 +2112,8 @@
     const evidenceByState = /* @__PURE__ */ new Map();
     let confirmedRootId = null;
     let canConfirmStart = false;
+    let priceContext = null;
+    let priceQuestionId = null;
     let ready = false;
     const post = (type, fields = {}) => api.ui.postMessage(__spreadValues({ type }, fields));
     const selectedFrame = () => {
@@ -1743,35 +2134,46 @@
     };
     const shipping = makeShippingDesigns && createShippingPanel(__spreadProps(__spreadValues({}, panelContext), { makeShippingDesigns }));
     const proposals = proposalBuilders && createProposalPanel(__spreadProps(__spreadValues({}, panelContext), { builders: proposalBuilders }));
-    async function scan(useSelection) {
+    async function scan(useSelection, submission) {
+      var _a, _b, _c, _d, _e, _f;
       if ((shipping == null ? void 0 : shipping.busy) || (proposals == null ? void 0 : proposals.busy)) return;
       const version = ++generation;
       evidenceByState.clear();
       canConfirmStart = false;
+      priceQuestionId = null;
       try {
         const frame = useSelection || !rootId ? selectedFrame() : await api.getNodeByIdAsync(rootId);
         if (generation !== version) return;
         if (!frame || frame.removed || frame.type !== "FRAME") {
           rootId = null;
           confirmedRootId = null;
+          priceContext = null;
           post("empty", { message: "검사를 시작할 프레임 하나를 선택하세요." });
           return;
         }
-        if (rootId !== frame.id) confirmedRootId = null;
+        if (rootId !== frame.id) {
+          confirmedRootId = null;
+          priceContext = null;
+        }
         rootId = frame.id;
         post("loading", { message: frame.name + "의 레이어와 프로토타입 연결을 읽고 있습니다." });
-        const result = await inspectFrame(frame, confirmedRootId === frame.id);
+        const result = await inspectFrame(frame, confirmedRootId === frame.id, priceContext, submission);
         if (generation !== version) return;
         canConfirmStart = Boolean(result.canConfirmStart);
+        priceContext = (_a = result.priceContext) != null ? _a : null;
+        priceQuestionId = (_d = (_c = (_b = result.priceInput) == null ? void 0 : _b.question) == null ? void 0 : _c.id) != null ? _d : null;
+        const registerEvidence = ({ state_id, node_id }) => {
+          if (!evidenceByState.has(state_id)) evidenceByState.set(state_id, /* @__PURE__ */ new Set());
+          evidenceByState.get(state_id).add(node_id);
+        };
         for (const finding2 of result.findings) {
-          for (const item of finding2.evidence) {
-            if (!evidenceByState.has(item.state_id)) evidenceByState.set(item.state_id, /* @__PURE__ */ new Set());
-            evidenceByState.get(item.state_id).add(item.node_id);
-          }
+          for (const item of finding2.evidence) registerEvidence(item);
         }
-        const _a = result, { shipping: spec, proposals: _specs } = _a, report = __objRest(_a, ["shipping", "proposals"]);
+        for (const { evidence } of (_f = (_e = result.priceInput) == null ? void 0 : _e.observations) != null ? _f : []) registerEvidence(evidence);
+        const _g = result, { shipping: spec, proposals: _specs, priceContext: _priceContext } = _g, report = __objRest(_g, ["shipping", "proposals", "priceContext"]);
         post("result", __spreadValues(__spreadValues(__spreadProps(__spreadValues({}, report), {
-          rootId: frame.id
+          rootId: frame.id,
+          scanVersion: version
         }), proposals ? { proposals: proposalOffers(result) } : {}), shipping ? { shipping: spec ? shippingQuote(spec) : null } : {}));
         shipping == null ? void 0 : shipping.invalidatePreview(frame.id);
         shipping == null ? void 0 : shipping.showExisting(frame.id);
@@ -1779,7 +2181,10 @@
       } catch (error) {
         if (generation !== version) return;
         console.error("FairFlow scan", error);
-        post("error", { message: "프레임을 읽는 중 오류가 발생했습니다. 프레임을 선택하고 다시 검사하세요." });
+        post("error", {
+          retryRootId: rootId,
+          message: rootId ? "프레임을 읽지 못했습니다. 다시 검사하세요." : "검사할 프레임을 선택하세요."
+        });
       }
     }
     async function revealNodes(ids, version) {
@@ -1809,6 +2214,7 @@
       }
     }
     api.ui.onmessage = async (message) => {
+      var _a;
       if (!message || typeof message !== "object") return;
       switch (message.type) {
         case "ready":
@@ -1822,6 +2228,17 @@
         case "confirm-start":
           if (rootId && canConfirmStart) {
             confirmedRootId = rootId;
+            return scan(false);
+          }
+          break;
+        case "answer-price-fact":
+          if (rootId && message.rootId === rootId && message.scanVersion === generation && priceQuestionId && message.factId === priceQuestionId && ["yes", "no", "unknown"].includes(message.answer)) {
+            return scan(false, message);
+          }
+          break;
+        case "reset-price-facts":
+          if (rootId && message.rootId === rootId && message.scanVersion === generation && !(shipping == null ? void 0 : shipping.busy) && !(proposals == null ? void 0 : proposals.busy) && Object.keys((_a = priceContext == null ? void 0 : priceContext.answers) != null ? _a : {}).length) {
+            priceContext = null;
             return scan(false);
           }
           break;
@@ -2065,17 +2482,17 @@
       return clone;
     }
     try {
-      const reference = copy(shipping, labels[0], x, y);
-      const [referencePaid, referenceBasic, , , referenceNext] = paths.map((path) => atPath(reference, path));
+      const reference2 = copy(shipping, labels[0], x, y);
+      const [referencePaid, referenceBasic, , , referenceNext] = paths.map((path) => atPath(reference2, path));
       await wireCopies2(
-        [reference],
+        [reference2],
         { paid: referencePaid, basic: referenceBasic, next: referenceNext },
         /* @__PURE__ */ new Map(),
         fastReview.id,
         basicReview.id,
         spec.defaultOption === "fast" ? fastReview.id : basicReview.id
       );
-      const results = { referenceFrameId: reference.id };
+      const results = { referenceFrameId: reference2.id };
       const starts = [];
       for (const [index, kind] of ["minimal", "layout"].entries()) {
         const left = x + (index + 1) * column, label2 = labels[index + 1];
@@ -2183,12 +2600,12 @@
   }
   function textLabel(node, expected) {
     const labels = [];
-    function walk(layer) {
+    function walk2(layer) {
       if (layer.visible === false || layer.opacity === 0) return;
       if (layer.type === "TEXT" && plainText(layer.characters) === expected) labels.push(layer);
-      for (const child of layer.children || []) walk(child);
+      for (const child of layer.children || []) walk2(child);
     }
-    walk(node);
+    walk2(node);
     if (labels.length !== 1) throw Error("버튼에서 수정할 문구 레이어를 하나로 특정할 수 없습니다.");
     return labels[0];
   }
@@ -2331,8 +2748,8 @@
     if (!journey.flow_start_confirmed || ((_a = journey.warnings) == null ? void 0 : _a.length)) return null;
     const reports = findings.filter((report) => report.pattern === "drip_pricing" && report.pricing);
     if (reports.length !== 1) return null;
-    const { pricing, status } = reports[0];
-    const { first, checkout, fee, base, firstAmount, finalAmount, baseAmount } = pricing;
+    const { pricing: pricing2, status } = reports[0];
+    const { first, checkout, fee, base, firstAmount, finalAmount, baseAmount } = pricing2;
     if (!base || !fee.label) return null;
     const path = directPath(journey, first.state_id, checkout.state_id);
     if (!path) return null;
@@ -2342,8 +2759,8 @@
       return label2 && normalized(label2) === normalized(fee.label);
     });
     if (path.some((state) => feeNodes(state).some((node) => {
-      const amount = money(node);
-      return uncertainFee.test(node.text) || amount != null && amount !== fee.amount;
+      const amount3 = money(node);
+      return uncertainFee.test(node.text) || amount3 != null && amount3 !== fee.amount;
     }))) return null;
     const screens = path.map((state, index) => {
       var _a2;
@@ -2352,9 +2769,9 @@
       const feeShown = nodes.some((node) => money(node) === fee.amount);
       const baseShown = state.nodes.some((node) => /^상품\s*(?:가격|금액|소계)/.test(node.text) && money(node) === baseAmount);
       const headline = index === 0 ? offerPrice(state) || state.nodes.find((node) => node.node_id === first.node_id) : index === path.length - 1 ? state.nodes.find((node) => node.node_id === checkout.node_id) : offerPrice(state);
-      const amount = headline ? money(headline) : null;
-      const totalShown = amount === finalAmount || state.nodes.some((node) => totalText.test(node.text) && money(node) === finalAmount);
-      const priceDetail = amount == null ? "대표 가격 미표시" : "표시 가격 " + won(amount);
+      const amount3 = headline ? money(headline) : null;
+      const totalShown = amount3 === finalAmount || state.nodes.some((node) => totalText.test(node.text) && money(node) === finalAmount);
+      const priceDetail = amount3 == null ? "대표 가격 미표시" : "표시 가격 " + won(amount3);
       const feeDetail = feeShown ? "필수 비용 " + won(fee.amount) : "필수 비용 금액 미표시";
       return {
         frameId: state.frame_id,
@@ -2368,7 +2785,7 @@
           var _a3, _b;
           return (((_a3 = b.style) == null ? void 0 : _a3.font_size_px) || 0) - (((_b = a.style) == null ? void 0 : _b.font_size_px) || 0);
         })[0]) == null ? void 0 : _a2.node_id,
-        amount,
+        amount: amount3,
         detail: priceDetail + " · " + feeDetail + (totalShown ? " · 포함 총액 표시" : "")
       };
     });
@@ -2383,17 +2800,17 @@
       summary: "필수 비용 " + won(fee.amount) + " 최초 표시: " + firstFee.label + " · 포함 총액 " + won(finalAmount) + " 최초 표시: " + firstTotal.label,
       steps: screens.map(({ frameId, label: label2, detail }, index) => ({ key: "stage-" + index, label: label2, detail, frameId })),
       screens,
-      pricing
+      pricing: pricing2
     };
   }
   function amountOf(text) {
     const values = text.match(amountText) || [];
     return values.length === 1 ? Number(values[0].replace(/\D/g, "")) : null;
   }
-  function priceLabel(node, amount) {
+  function priceLabel(node, amount3) {
     var _a;
-    if (node.type === "TEXT" && amountOf(node.characters) === amount) return node;
-    const matches = (_a = node.findAll) == null ? void 0 : _a.call(node, (child) => child.type === "TEXT" && child.visible && amountOf(child.characters) === amount && !feeText.test(child.characters));
+    if (node.type === "TEXT" && amountOf(node.characters) === amount3) return node;
+    const matches = (_a = node.findAll) == null ? void 0 : _a.call(node, (child) => child.type === "TEXT" && child.visible && amountOf(child.characters) === amount3 && !feeText.test(child.characters));
     return (matches == null ? void 0 : matches.length) === 1 ? matches[0] : null;
   }
   async function loadFont(api, layer) {
@@ -2401,9 +2818,9 @@
       throw Error("가격 문구의 글꼴을 읽을 수 없습니다. 한 가지 글꼴을 사용한 텍스트 레이어를 지정하세요.");
     await api.loadFontAsync(layer.fontName);
   }
-  function setInstanceProperty(layer, reference, type, value) {
+  function setInstanceProperty(layer, reference2, type, value) {
     var _a, _b;
-    const property = (_a = layer.componentPropertyReferences) == null ? void 0 : _a[reference];
+    const property = (_a = layer.componentPropertyReferences) == null ? void 0 : _a[reference2];
     if (!property) return false;
     for (let owner = layer.parent; owner && owner.type !== "PAGE"; owner = owner.parent) {
       if (owner.type === "INSTANCE" && ((_b = owner.componentProperties[property]) == null ? void 0 : _b.type) === type) {
@@ -2502,23 +2919,23 @@
     }
   }
   function createPricingProposals(api, spec) {
-    const { pricing, screens } = spec;
+    const { pricing: pricing2, screens } = spec;
     return cloneProposal(api, spec, async ({ kind, frame, getNode }) => {
       const checkout = screens[screens.length - 1];
-      const feeStyle = await getNode(checkout.frameId, pricing.fee.node_id);
-      const baseStyle = await getNode(checkout.frameId, pricing.base.node_id);
-      const totalStyle = await getNode(checkout.frameId, pricing.checkout.node_id);
+      const feeStyle = await getNode(checkout.frameId, pricing2.fee.node_id);
+      const baseStyle = await getNode(checkout.frameId, pricing2.base.node_id);
+      const totalStyle = await getNode(checkout.frameId, pricing2.checkout.node_id);
       if ([feeStyle, baseStyle, totalStyle].some((node) => node.type !== "TEXT"))
         throw Error("주문 화면에서 필수 비용과 상품 가격의 텍스트 레이어가 필요합니다.");
       for (const [index, screen] of screens.slice(0, -1).entries()) {
         const variantFrame = frame(screen.frameId);
         let price = null;
-        if (screen.headlineId && [pricing.baseAmount, pricing.finalAmount].includes(screen.amount)) {
+        if (screen.headlineId && [pricing2.baseAmount, pricing2.finalAmount].includes(screen.amount)) {
           const node = await getNode(screen.frameId, screen.headlineId);
           price = priceLabel(node, screen.amount);
           if (!price) throw Error("변경할 가격 텍스트를 하나로 특정할 수 없습니다.");
-          if (screen.amount !== pricing.finalAmount)
-            await setCopy(api, price, price.characters.replace(amountText, won(pricing.finalAmount)));
+          if (screen.amount !== pricing2.finalAmount)
+            await setCopy(api, price, price.characters.replace(amountText, won(pricing2.finalAmount)));
         }
         if (index === 0 && !price) throw Error("첫 가격 레이어를 확인할 수 없습니다.");
         if (index > 0 && kind !== "layout") continue;
@@ -2526,28 +2943,291 @@
         if (!anchor) continue;
         const rows = [];
         if (kind === "layout" && !screen.baseShown) {
-          rows.push({ label: "상품 소계", text: "상품 소계 " + won(pricing.baseAmount), style: baseStyle });
+          rows.push({ label: "상품 소계", text: "상품 소계 " + won(pricing2.baseAmount), style: baseStyle });
         }
         if (!screen.feeShown) {
-          const label2 = "필수 고정 " + pricing.fee.label + " " + won(pricing.fee.amount) + " 포함";
+          const label2 = "필수 고정 " + pricing2.fee.label + " " + won(pricing2.fee.amount) + " 포함";
           const card = screen.cardId ? await getNode(screen.frameId, screen.cardId) : price == null ? void 0 : price.parent;
-          if (!(kind === "minimal" && card && await reuseFeeCopy(api, card, price, pricing.fee, label2))) {
+          if (!(kind === "minimal" && card && await reuseFeeCopy(api, card, price, pricing2.fee, label2))) {
             rows.push({ label: "포함 필수 비용", text: label2, style: feeStyle });
           }
         }
         if (!price && !screen.totalShown) {
-          rows.push({ label: "포함 총액", text: "포함 총액 " + won(pricing.finalAmount), style: totalStyle });
+          rows.push({ label: "포함 총액", text: "포함 총액 " + won(pricing2.finalAmount), style: totalStyle });
         }
         if (rows.length) await disclosure(api, variantFrame, anchor, rows, kind === "layout", feeStyle);
       }
     });
   }
 
+  // src/price-evidence.js
+  var priceToken = /(?:₩|KRW)\s*\d[\d,]*(?:\s*원)?|\d[\d,]*\s*원/gi;
+  var feeToken = /배송비|빠른\s*배송|포장비|수수료|서비스\s*요금|발권비|이용료|처리비|접수비|발급비|관리비/;
+  var baseCopy = /상품\s*(?:금액|소계|가|가격)|^상품\s|주문\s*금액|기본\s*요금|소계|객실\s*요금|티켓\s*요금|이용권/;
+  var choiceRoles = /* @__PURE__ */ new Set(["radio", "checkbox", "switch", "toggle"]);
+  var mandatoryCopy = /필수|의무|모든\s*(?:주문|구매|예약)/;
+  var fixedCopy = /고정|정액|일괄|일률/;
+  var optionCopy = /선택\s*(?:사항|배송|추가)|배송\s*선택|선택\s*시|직접\s*선택/;
+  var amountsVary = /이상.*무료|미만|별도\s*(?:결정|계산)|추후\s*(?:확정|안내)|현장\s*결정|제주|도서산간/;
+  var excludedCopy = /미포함|불포함|포함\s*(?:여부|안\s*됨|되지\s*않)/;
+  var priceLabel2 = /\s*(?:정가|할인\s*전(?:\s*가격)?|판매가|할인가|쿠폰가)\s*[:：]?\s*$/;
+  function amount2(node) {
+    if (Number.isSafeInteger(node.amount_krw)) return node.amount_krw;
+    if (/[\d,]\s*[~–-]\s*[₩\d]/.test(node.text)) return null;
+    const matches = [...node.text.matchAll(priceToken)];
+    return matches.length === 1 ? Number(matches[0][0].replace(/\D/g, "")) : null;
+  }
+  function priceRoles(node) {
+    var _a, _b;
+    const matches = [...node.text.matchAll(priceToken)];
+    if (!((_a = node.struck_ranges) == null ? void 0 : _a.length) || !matches.length || /[\d,]\s*[~–-]\s*[₩\d]/.test(node.text)) return node;
+    const visible = matches.filter((match) => {
+      const firstDigit = match.index + match[0].search(/\d/);
+      const lastDigit = match.index + match[0].search(/\d(?=\s*원?$)/);
+      return !node.struck_ranges.some(([start, end]) => start <= firstDigit && end > lastDigit);
+    });
+    if (visible.length !== 1 || visible.length === matches.length) return visible.length ? node : null;
+    const current = visible[0];
+    const index = matches.indexOf(current);
+    const from = index === 0 ? 0 : matches[index - 1].index + matches[index - 1][0].length;
+    const next = matches[index + 1];
+    const currentText = node.text.slice(from, (_b = next == null ? void 0 : next.index) != null ? _b : node.text.length);
+    return __spreadProps(__spreadValues({}, node), {
+      text: (next ? currentText.replace(priceLabel2, "") : currentText).trim(),
+      amount_krw: Number(current[0].replace(/\D/g, ""))
+    });
+  }
+  function priceState(state) {
+    var _a;
+    const nodes = new Map(state.nodes.map((node) => [node.node_id, node]));
+    for (const layer of (_a = state.price_texts) != null ? _a : []) nodes.set(layer.node_id, layer);
+    return joinPriceRows(__spreadProps(__spreadValues({}, state), { nodes: [...nodes.values()].map(priceRoles).filter(Boolean) }));
+  }
+  function identity(state) {
+    const label2 = state.nodes.find((node) => /^(?:상품명|상품\s*코드|SKU)\s*[:：]/i.test(node.text));
+    return state.product_id || state.product_name || (label2 == null ? void 0 : label2.text.split(/[:：]/).slice(1).join(":").replace(/\s+/g, ""));
+  }
+  function reference(state, node) {
+    return { state_id: state.state_id, node_id: node.node_id };
+  }
+  function findPath(journey) {
+    var _a, _b, _c, _d, _e;
+    if (journey.flow_start_confirmed === false || ((_a = journey.warnings) == null ? void 0 : _a.some((warning) => warning.includes("한도"))) || ((_b = journey.warnings) == null ? void 0 : _b.length) && !journey.states.some((state2) => {
+      var _a2;
+      return (_a2 = state2.read_warnings) == null ? void 0 : _a2.length;
+    })) return null;
+    const states = new Map(journey.states.map((state2) => [state2.state_id, priceState(state2)]));
+    const outgoing = /* @__PURE__ */ new Map();
+    for (const transition of journey.transitions) {
+      const edges2 = (_c = outgoing.get(transition.from_state_id)) != null ? _c : [];
+      edges2.push(transition);
+      outgoing.set(transition.from_state_id, edges2);
+    }
+    const frames = [];
+    const edges = [];
+    const visited = /* @__PURE__ */ new Set();
+    let state = states.get(journey.entry_state_id);
+    let first;
+    let firstIndex = 0;
+    let item;
+    while (state && !visited.has(state.state_id)) {
+      if ((_d = state.read_warnings) == null ? void 0 : _d.length) return null;
+      visited.add(state.state_id);
+      frames.push(state);
+      const stateItem = identity(state);
+      if (item && stateItem && item !== stateItem) return null;
+      item != null ? item : item = stateItem;
+      const totals = state.nodes.filter((node) => totalText.test(node.text) && amount2(node) !== null);
+      if (totals.length) {
+        const [total] = totals;
+        if (first && totals.every((candidate) => amount2(candidate) === amount2(total))) {
+          return { first, firstIndex, total, frames, edges };
+        }
+        return null;
+      }
+      const displaysPrice = state.nodes.some((node) => amount2(node) !== null);
+      if (!first && displaysPrice) {
+        first = offerPrice(state);
+        if (!first) return null;
+        firstIndex = frames.length - 1;
+      }
+      const relevant = ((_e = outgoing.get(state.state_id)) != null ? _e : []).filter((edge2) => {
+        var _a2;
+        if ((first == null ? void 0 : first.offer_action_id) && firstIndex === frames.length - 1 && edge2.action.node_id !== first.offer_action_id) return false;
+        const action2 = state.nodes.find((node) => node.node_id === edge2.action.node_id);
+        return !/다른\s*(?:상품|요금제)/.test((_a2 = action2 == null ? void 0 : action2.text) != null ? _a2 : "");
+      });
+      if (relevant.length !== 1) return null;
+      const [edge] = relevant;
+      const action = state.nodes.find((node) => node.node_id === edge.action.node_id);
+      if (!action || action.enabled === false || edge.uncertain || edge.action.type !== "click") return null;
+      edges.push({ edge, action });
+      state = states.get(edge.to_state_id);
+    }
+    return null;
+  }
+  function feeKind2(node) {
+    var _a;
+    return (_a = node.text.match(feeToken)) == null ? void 0 : _a[0].replace(/\s+/g, "");
+  }
+  function readFee(fee, path) {
+    const { frames, edges, firstIndex } = path;
+    const checkout = frames[frames.length - 1];
+    const kind = feeKind2(fee);
+    const value = amount2(fee);
+    const matches = (node) => feeKind2(node) === kind;
+    const sameAmount = (node) => matches(node) && amount2(node) === value;
+    const optsIn = edges.some(({ action }, index) => choiceRoles.has(action.role) && action.checked === false && sameAmount(action) && frames[index + 1].nodes.some((node) => choiceRoles.has(node.role) && node.checked === true && sameAmount(node)));
+    const description = frames.flatMap((state) => state.nodes.filter(matches).map((node) => node.text)).join(" · ");
+    const conditional = uncertainFee.test(description) || amountsVary.test(description);
+    const mandatory = mandatoryCopy.test(description);
+    const optional = optsIn || optionCopy.test(description);
+    const required = mandatory && !optional && !conditional ? true : optional && !mandatory ? false : null;
+    const firstDisplay = (state) => state.nodes.find((node) => sameAmount(node) || matches(node) && /포함/.test(node.text) && !excludedCopy.test(node.text));
+    const offerState = frames[firstIndex];
+    const firstShownState = frames.slice(firstIndex).find((state) => firstDisplay(state));
+    const shown = firstShownState && firstDisplay(firstShownState);
+    return __spreadProps(__spreadValues({}, reference(checkout, fee)), {
+      amount: value,
+      firstShown: shown ? __spreadProps(__spreadValues({}, reference(firstShownState, shown)), { stateName: firstShownState.name || firstShownState.state_id }) : null,
+      visibleAtFirst: Boolean(firstDisplay(offerState)),
+      required,
+      calculable: fixedCopy.test(description) && !conditional ? true : null,
+      explicitOptIn: required === true ? false : optsIn && required === false ? true : null
+    });
+  }
+  function readPriceEvidence(journey) {
+    var _a;
+    const path = findPath(journey);
+    if (!path) return null;
+    const { first, total, firstIndex, frames, edges } = path;
+    const offer = frames[firstIndex];
+    const checkout = frames[frames.length - 1];
+    const firstAmount = money(first), totalAmount = amount2(total);
+    if (!Number.isSafeInteger(firstAmount) || firstAmount < 0 || !(totalAmount > 0) || firstAmount > totalAmount) return null;
+    const charges = checkout.nodes.filter((node) => node !== total && node.role === "text" && feeKind2(node));
+    if (charges.some((node) => amount2(node) === null && !/무료|포함/.test(node.text) && // A plain label paired by joinPriceRows is represented by the amount layer.
+    !charges.some((charge) => charge.price_label_id === node.node_id))) return null;
+    const fees = charges.filter((node) => amount2(node) > 0);
+    if (fees.length > 1) return null;
+    const fee = fees.length ? readFee(fees[0], path) : null;
+    const feeAmount = (_a = fee == null ? void 0 : fee.amount) != null ? _a : 0;
+    const difference = totalAmount - firstAmount;
+    const baseAmounts = new Set(checkout.nodes.filter((node) => node !== total && !feeKind2(node) && baseCopy.test(node.text)).map(amount2).filter((value) => value !== null));
+    if (baseAmounts.size > 1 || baseAmounts.size === 1 && !baseAmounts.has(totalAmount - feeAmount) || difference !== 0 && difference !== feeAmount) return null;
+    return {
+      key: JSON.stringify([
+        journey.entry_state_id,
+        frames.map((state) => [state.state_id, identity(state), state.price_texts, state.nodes]),
+        edges.map(({ edge }) => [edge.from_state_id, edge.to_state_id, edge.action])
+      ]),
+      first: __spreadProps(__spreadValues({}, reference(offer, first)), { amount: firstAmount }),
+      total: __spreadProps(__spreadValues({}, reference(checkout, total)), { amount: totalAmount }),
+      fee
+    };
+  }
+
+  // src/pricing-input.js
+  var fact = {
+    requiredForOrder: {
+      label: "이 주문의 필수 비용",
+      prompt: "이 주문 조건에서 이 배송비가 반드시 붙나요?"
+    },
+    calculableAtFirstOffer: {
+      label: "첫 가격에서 비용 산정 가능",
+      prompt: "첫 가격을 표시할 때 같은 주문 조건에서 이 금액을 계산할 수 있었나요?"
+    },
+    explicitOptIn: {
+      label: "구매자가 직접 추가",
+      prompt: "사용자가 이 비용이 붙는 옵션을 직접 선택했나요?"
+    }
+  };
+  function compile({ first, total, fee }, answers) {
+    var _a, _b, _c, _d;
+    const difference = total.amount - first.amount;
+    const required = (_a = fee == null ? void 0 : fee.required) != null ? _a : answers.requiredForOrder;
+    const calculable = (_b = fee == null ? void 0 : fee.calculable) != null ? _b : answers.calculableAtFirstOffer;
+    const explicit = (_c = fee == null ? void 0 : fee.explicitOptIn) != null ? _c : answers.explicitOptIn;
+    const hold = (blocker, factId) => ({
+      blocker,
+      question: factId ? { id: factId, prompt: fact[factId].prompt } : null
+    });
+    if (difference < 0 || difference && difference !== (fee == null ? void 0 : fee.amount)) {
+      return hold("첫 가격과 결제 합계의 차이를 읽어 낸 비용으로 설명할 수 없습니다.");
+    }
+    if (difference > 0) {
+      if (explicit === true && required === true) return hold("필수 비용과 직접 선택 기록이 충돌합니다.");
+      if (typeof required !== "boolean" && explicit !== true) {
+        return hold("이 주문에 배송비가 필수인지 확인이 필요합니다.", "requiredForOrder");
+      }
+      if (required) {
+        if (typeof calculable !== "boolean") {
+          return hold("첫 가격 시점에 이 배송비를 계산할 수 있었는지 확인이 필요합니다.", "calculableAtFirstOffer");
+        }
+        if (!calculable) return hold("첫 가격 표시 시 계산할 수 없었던 비용의 적용 조건을 확인해 주세요.");
+      } else {
+        if (typeof explicit !== "boolean") {
+          return hold("사용자가 이 추가 비용을 직접 고른 경로인지 확인이 필요합니다.", "explicitOptIn");
+        }
+        if (!explicit) return hold("금액이 증가한 경로의 추가 비용 적용 조건을 확인해 주세요.");
+      }
+    }
+    const feeAmount = (_d = fee == null ? void 0 : fee.amount) != null ? _d : 0;
+    return { values: pricingVector(
+      first.amount,
+      total.amount,
+      feeAmount,
+      required && calculable ? feeAmount : 0,
+      (fee == null ? void 0 : fee.visibleAtFirst) ? feeAmount : 0,
+      !required && explicit ? feeAmount : 0
+    ) };
+  }
+  var observation = (label2, amount3, { state_id, node_id }) => ({ label: label2, value: won(amount3), evidence: { state_id, node_id } });
+  function preparePriceInput(journey, weights, previous, submission) {
+    var _a, _b, _c, _d;
+    const record = readPriceEvidence(journey);
+    if (!record) return { priceInput: null, priceContext: null };
+    const { key, first, total, fee } = record;
+    const unchanged = (previous == null ? void 0 : previous.key) === key;
+    const answers = unchanged ? __spreadValues({}, previous.answers) : {};
+    let packet = compile(record, answers);
+    if (unchanged && submission && submission.factId === ((_a = packet.question) == null ? void 0 : _a.id) && submission.answer !== "unknown") {
+      answers[submission.factId] = submission.answer === "yes";
+      packet = compile(record, answers);
+    }
+    const score = packet.values ? predictLogistic(packet.values, weights) : null;
+    const observations = [observation("첫 판매가", first.amount, first)];
+    if (fee) {
+      const shown = (_b = fee.firstShown) != null ? _b : fee;
+      const label2 = ((_c = fee.firstShown) == null ? void 0 : _c.stateName) ? "배송비 첫 공개 · " + fee.firstShown.stateName : "결제에 표시된 배송비";
+      observations.push(observation(label2, fee.amount, shown));
+    }
+    observations.push(observation("결제 합계", total.amount, total));
+    return {
+      priceInput: {
+        status: packet.values ? "ready" : "needs_context",
+        observations,
+        signals: [
+          { label: "첫 가격에서 결제까지 차이", value: won(total.amount - first.amount) },
+          ...fee ? [{ label: "첫 가격 화면에 표시된 비용", value: fee.visibleAtFirst ? won(fee.amount) : "표시 없음" }] : []
+        ],
+        question: (_d = packet.question) != null ? _d : null,
+        confirmations: Object.entries(answers).map(([id, answer]) => ({ label: fact[id].label, value: answer ? "예" : "아니요" })),
+        blockers: packet.blocker ? [packet.blocker] : [],
+        score
+      },
+      priceContext: { key, answers }
+    };
+  }
+
   // src/main.js
   figma.showUI(__html__, { width: 540, height: 700, themeColors: true });
-  startPanel(figma, async (frame, startConfirmedByDesigner) => {
+  startPanel(figma, async (frame, startConfirmedByDesigner, priceContext, submission) => {
+    var _a;
     const journey = await readJourney(figma, frame);
     if (startConfirmedByDesigner) journey.flow_start_confirmed = true;
+    const pricing2 = preparePriceInput(journey, model_weights_default.patterns.drip_pricing, priceContext, submission);
+    const ruleFindings = analyzeJourney(journey);
     const layerLabels = /* @__PURE__ */ new Map();
     for (const state of journey.states) {
       const labels = /* @__PURE__ */ new Map();
@@ -2557,12 +3237,12 @@
       }
       layerLabels.set(state.state_id, labels);
     }
-    const findings = await Promise.all(analyzeJourney(journey).map(async (finding2) => {
+    const findings = await Promise.all(ruleFindings.map(async (finding2) => {
       const result = __spreadProps(__spreadValues({}, finding2), {
         evidence: finding2.evidence.map((item) => {
-          var _a;
+          var _a2;
           return __spreadProps(__spreadValues({}, item), {
-            label: ((_a = layerLabels.get(item.state_id)) == null ? void 0 : _a.get(item.node_id)) || "프레임 보기"
+            label: ((_a2 = layerLabels.get(item.state_id)) == null ? void 0 : _a2.get(item.node_id)) || "프레임 보기"
           });
         })
       });
@@ -2572,18 +3252,20 @@
       const review = reviewContent(result);
       return review ? __spreadProps(__spreadValues({}, result), { review }) : result;
     }));
-    return {
+    return __spreadProps(__spreadValues({
       frameName: frame.name,
       stateCount: journey.states.length,
       transitionCount: journey.transitions.length,
       canConfirmStart: !journey.flow_start_confirmed,
       warnings: journey.warnings || [],
       findings,
+      comparison: compareDetectors(journey, ruleFindings, model_weights_default.patterns, (_a = pricing2.priceInput) == null ? void 0 : _a.score)
+    }, pricing2), {
       shipping: readShippingScenario(journey, figma.currentPage.id),
       proposals: {
         hierarchy: readHierarchyProposal(journey, findings, figma.currentPage.id),
         price: readPricingProposal(journey, findings, figma.currentPage.id)
       }
-    };
+    });
   }, createShippingDesigns, { hierarchy: createHierarchyProposals, price: createPricingProposals });
 })();

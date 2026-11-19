@@ -158,6 +158,21 @@
     );
     return card;
   }
+  function modelComparisonFor(result, spec, expected) {
+    const comparison = result.comparison?.find(row => row.pattern === spec.pattern);
+    check(result.comparison?.length === 3 && comparison?.ruleStatus === expected &&
+      comparison.modelStatus === expected && Number.isFinite(comparison.score),
+    "모델 비교 결과 불일치: " + JSON.stringify(comparison));
+    const details = query(".model-comparison");
+    check(details, "판별 방식 비교가 표시되지 않았습니다.");
+    if (!details.open) details.querySelector("summary").click();
+    const row = details.querySelector('[data-pattern="' + spec.pattern + '"]');
+    const badges = Array.from(row?.querySelectorAll(".model-comparison-status") || []);
+    check(badges.length === 2 && badges.every(badge => badge.dataset.status === expected) &&
+      row.querySelector(".model-comparison-score")?.textContent.includes("위험 점수"),
+    "판별 방식 비교에 두 상태와 점수가 표시되지 않았습니다.");
+    return comparison;
+  }
   async function runOne(spec, log) {
     const beforeSelection = scanCount;
     const previousResult = resultCount;
@@ -189,6 +204,9 @@
     );
     const card = riskCardFor(spec);
     log.before = card.dataset.status;
+    log.panelBefore = query('.risk-count[data-tone="risk"]')?.textContent.trim();
+    check(log.panelBefore, "검사 결과 상단에서 위험 신호를 확인하지 못했습니다.");
+    log.comparisonBefore = modelComparisonFor(result, spec, "risk_signal");
     if (card.tagName === "DETAILS" && !card.open) card.querySelector("summary").click();
     const citation = card.querySelector(".review-rule .review-citation")?.textContent.trim();
     check(citation?.includes("제21조의2 제1항 제" + spec.articleItem + "호"),
@@ -254,12 +272,111 @@
     check(cleared && !query('.finding[data-status="risk_signal"]'),
       "수정한 유형의 신호 해소가 패널에 반영되지 않았습니다.");
     log.after = cleared.status;
+    log.panelAfter = query('.risk-count:not([data-tone="risk"])')?.textContent.trim();
+    check(log.panelAfter, "수정 후 검사 결과 상단에 이전 위험 상태가 남았습니다.");
+    log.comparisonAfter = modelComparisonFor(after, spec, "signal_absent");
     const view = (await command("inspect", spec.key)).view;
     check(
       view.selected[0]?.id === pinnedEvidence,
       "재검사 중 선택 레이어가 변경되었습니다.",
     );
     log.selectionAfterRescan = view.selected[0].id;
+    log.passed = true;
+  }
+  async function runPriceInput(log) {
+    const journey = "price-input";
+    const { board, rootName, view } = await command("prepare-price-input", journey);
+    check(view.selected[0]?.id === board.start && view.starts.some(point => point.nodeId === board.start),
+      "가격 입력 QA 시작점을 선택하지 못했습니다.");
+    log.root = { id: board.start, name: rootName };
+    const first = await scan("#scan-selection", rootName);
+    const compare = result => result.comparison?.find(row => row.pattern === "drip_pricing");
+    const blocked = (result, factId) => result.rootId === board.start &&
+      result.priceInput?.status === "needs_context" && result.priceInput.question?.id === factId &&
+      result.priceInput.score === null && compare(result)?.modelStatus === "needs_context" &&
+      query("#price-input[data-status='needs_context']") && !query("#price-input-score");
+    check(blocked(first, "requiredForOrder"),
+      "배송비 필수 여부 확인 전에는 정보 부족이어야 합니다: " + JSON.stringify(first.priceInput));
+    check(first.stateCount === 3 && first.transitionCount === 2 && Number.isInteger(first.scanVersion),
+      "가격 입력 QA의 프레임, 연결 또는 검사 버전이 다릅니다.");
+    const observations = first.priceInput.observations;
+    const values = [
+      [board.first, "62,000"],
+      [board.detailFee, "40,000"],
+      [board.total, "102,000"],
+    ];
+    for (const [nodeId, value] of values) {
+      check(observations.some(item => item.evidence?.node_id === nodeId && String(item.value).includes(value)) &&
+        query('#price-input-journey [data-price-evidence][data-node-id="' + nodeId + '"]'),
+      "여정 기록의 금액 또는 레이어 근거가 다릅니다: " + value + " / " + JSON.stringify(observations));
+    }
+    check(query("#price-input-model")?.textContent.includes("40,000원"),
+      "확인 가능한 40,000원 가격 차이가 모델 입력에 표시되지 않았습니다.");
+    log.before = {
+      model: compare(first)?.modelStatus,
+      question: first.priceInput.question?.id,
+      observations,
+      frames: first.stateCount,
+      transitions: first.transitionCount,
+    };
+    await command("pan-away", journey, board.detailFee);
+    await until(async () => (await command("inspect", journey, board.detailFee)).targetInView === false,
+      "상세 배송비 레이어를 화면 밖으로 옮기지 못했습니다.");
+    await clickReady('#price-input-journey [data-price-evidence][data-node-id="' + board.detailFee + '"]',
+      "상세 배송비 근거");
+    log.evidence = await until(async () => {
+      const { view } = await command("inspect", journey);
+      return view.selected.length === 1 && view.selected[0].id === board.detailFee && view.selected[0].inViewport &&
+        view.selected[0];
+    }, "상세의 배송비 레이어로 이동하지 못했습니다.");
+
+    async function yes(factId) {
+      const previous = resultCount;
+      await clickReady('#price-input-question[data-fact-id="' + factId + '"] [data-price-answer="yes"]', factId);
+      return until(() => resultCount > previous && lastResult.rootId === board.start && lastResult,
+        "가격 확인 답변이 같은 여정의 재검사에 반영되지 않았습니다: " + factId);
+    }
+    const required = await yes("requiredForOrder");
+    check(blocked(required, "calculableAtFirstOffer"),
+      "필수 여부와 첫 표시 시 계산 가능 여부를 각각 확인해야 합니다: " + JSON.stringify(required.priceInput));
+    const complete = await yes("calculableAtFirstOffer");
+    const risk = compare(complete);
+    check(complete.priceInput?.status === "ready" && !complete.priceInput?.question &&
+      risk?.modelStatus === "risk_signal" && complete.priceInput?.score === risk.score && risk.score >= 0.5 &&
+      query("#price-input[data-status='ready'] #price-input-score"),
+    "가격 확인 후 모델 점수 또는 위험 신호가 표시되지 않았습니다: " + JSON.stringify({ risk, input: complete.priceInput }));
+    log.confirmed = { model: risk.modelStatus, score: risk.score, answers: complete.priceInput.confirmations };
+    const retained = await scan("#scan", rootName);
+    check(retained.rootId === board.start && compare(retained)?.score === risk.score &&
+      (await command("inspect", journey)).view.selected[0]?.id === board.detailFee,
+    "같은 화면을 재검사할 때 답변 또는 근거 선택이 유지되지 않았습니다.");
+
+    const previous = resultCount;
+    const resetText = (await clickReady("#price-input-reset", "답변 다시 입력")).textContent.trim();
+    const reset = await until(() => resultCount > previous && lastResult.rootId === board.start && lastResult,
+      "답변을 다시 입력할 때 같은 여정이 재검사되지 않았습니다.");
+    const selected = (await command("inspect", journey)).view.selected;
+    check(blocked(reset, "requiredForOrder") && reset.priceInput.confirmations?.length === 0 &&
+      selected.length === 1 && selected[0].id === board.detailFee && selected[0].inViewport &&
+      document.activeElement === query("#price-input-question"),
+    "답변을 지운 뒤 첫 질문, 모델 점수 또는 선택한 근거가 올바른 상태로 돌아가지 않았습니다.");
+    log.reset = { action: resetText, model: compare(reset).modelStatus, question: reset.priceInput.question.id,
+      score: reset.priceInput.score, rootId: reset.rootId, evidenceId: selected[0].id };
+    check(blocked(await yes("requiredForOrder"), "calculableAtFirstOffer"),
+      "답변을 다시 입력할 때 두 번째 질문으로 넘어가지 않았습니다.");
+    const repeated = await yes("calculableAtFirstOffer");
+    check(repeated.priceInput?.status === "ready" && repeated.priceInput.confirmations?.length === 2 &&
+      repeated.priceInput.score === risk.score && compare(repeated)?.modelStatus === "risk_signal" &&
+      query("#price-input-score"), "답변을 다시 입력해도 검사 조건과 점수가 복원되지 않았습니다.");
+    log.reset.restoredScore = repeated.priceInput.score;
+
+    await command("edit-price-input", journey);
+    const edited = await scan("#scan", rootName);
+    check(blocked(edited, "requiredForOrder") && edited.priceInput.confirmations?.length === 0 &&
+      edited.priceInput.observations.some(item => String(item.value).includes("41,000")),
+    "배송비를 수정했는데 기존 확인이 남았거나 새 금액이 반영되지 않았습니다: " + JSON.stringify(edited.priceInput));
+    log.afterEdit = { model: compare(edited)?.modelStatus, question: edited.priceInput.question.id,
+      observations: edited.priceInput.observations };
     log.passed = true;
   }
   const shippingRow = (key) => query('[data-shipping-key="' + key + '"]');
@@ -289,7 +406,7 @@
       "배송 비교 결과가 표시되지 않았습니다: " + selector,
     );
   }
-  async function setupShipping(log) {
+  async function setupShipping(log, useReviewAction = false) {
     const { board, rootName } = await command("risk", "shipping");
     await scan("#scan-selection", rootName);
     log.diagnostics = (await command("read-journey", "shipping")).capture;
@@ -297,6 +414,27 @@
     const original = { key: "original", frameId: board.start, fastReviewId: board.review, basicReviewId: board.freeReview };
     const originalBefore = (await command("inspect-shipping", "shipping", null, [original])).shipping[0];
     const before = comparisonCount;
+    if (useReviewAction) {
+      const button = query('[data-review-design="shipping"]');
+      check(button && !button.disabled && button.getClientRects().length > 0,
+        "위험 카드에서 Figma 시안 보기 버튼을 찾지 못했습니다.");
+      const hasComparison = Boolean(shippingRow("minimal"));
+      log.action = button.textContent.trim();
+      lastError = null;
+      button.click();
+      check(document.activeElement?.id === "shipping", "Figma 시안 보기 후 키보드 포커스가 시안 영역으로 이동하지 않았습니다.");
+      const comparison = await until(() => {
+        const tools = query(".advanced-tools");
+        return tools?.open && !tools.hidden && lastComparison?.rootId === board.start &&
+          (hasComparison || comparisonCount > before) && shippingRow("layout") && lastComparison;
+      }, "Figma 시안 보기 버튼으로 배송 비교를 열지 못했습니다.", 45000);
+      const thumbnails = await until(() => {
+        const images = [...document.querySelectorAll("#shipping .design-thumbnails img")];
+        return images.length === 2 && images.every(image => image.naturalWidth > 0) && images;
+      }, "최소 수정안과 배치 변경안의 이미지가 플러그인에 표시되지 않았습니다.");
+      log.thumbnails = thumbnails.map(image => image.alt);
+      return { board, original, originalBefore, comparison };
+    }
     if (openAdvancedTools("shipping")) {
       log.action = "shipping-create";
       const comparison = await until(() => comparisonCount > before && lastComparison,
@@ -311,8 +449,8 @@
     log.action = action;
     return { board, original, originalBefore, comparison };
   }
-  async function runShipping(log) {
-    const { board, original, originalBefore, comparison } = await setupShipping(log);
+  async function runShipping(log, useReviewAction = false) {
+    const { board, original, originalBefore, comparison } = await setupShipping(log, useReviewAction);
     const { columns, basicFee, fastFee, basicTotal, fastTotal, referenceFrameId } = comparison;
     check(
       sameIds(columns.map((column) => column.key), ["original", "minimal", "layout"]),
@@ -679,20 +817,62 @@
     log.after = rescanned.columns.map(({ key, status }) => ({ key, status }));
     log.passed = true;
   }
+  async function runJourneys(report, compact = false) {
+    for (const spec of cases) {
+      status.textContent = spec.label + " 검사 중";
+      const log = { journey: spec.key, passed: false };
+      report.cases.push(log);
+      await runOne(spec, log);
+      if (compact) report.cases[report.cases.length - 1] = {
+        journey: log.journey, passed: log.passed, root: log.root, manualScan: log.manualScan,
+        before: log.before, after: log.after, evidence: log.evidence.map(layer => layer.id),
+        panelBefore: log.panelBefore, panelAfter: log.panelAfter, alternativeCount: log.alternativeCount,
+      };
+    }
+  }
+  async function runNewUI(report) {
+    status.textContent = "검증 여정 준비 중";
+    await command("build");
+    await runJourneys(report, true);
+
+    status.textContent = "배송비 답변 다시 입력 검증 중";
+    const price = { journey: "price-input", passed: false };
+    const priceIndex = report.cases.push(price) - 1;
+    await runPriceInput(price);
+    report.cases[priceIndex] = { journey: price.journey, passed: price.passed, root: price.root, reset: price.reset };
+
+    status.textContent = "배송 시안 보기 검증 중";
+    const shipping = { journey: "shipping-design", passed: false };
+    const shippingIndex = report.cases.push(shipping) - 1;
+    await runShipping(shipping, true);
+    report.cases[shippingIndex] = {
+      journey: shipping.journey, passed: shipping.passed, action: shipping.action, thumbnails: shipping.thumbnails,
+      frames: shipping.sideBySide.map(frame => frame.id), after: shipping.after,
+    };
+  }
   toolbar.addEventListener("click", async (event) => {
     const btn = event.target.closest("button");
     if (!btn || active) return;
     active = true;
     toolbar.querySelectorAll("button").forEach((b) => (b.disabled = true));
     try {
-      if (["qa-run", "qa-run-shipping", "qa-run-proposals", "qa-run-shipping-preview"].includes(btn.id)) {
+      if (["qa-run", "qa-run-new-ui", "qa-run-shipping", "qa-run-proposals", "qa-run-shipping-preview", "qa-run-price-input"].includes(btn.id)) {
         const report = {
           started: new Date().toISOString(),
           cases: [],
           passed: false,
         };
         try {
-          if (btn.id === "qa-run-shipping-preview") {
+          if (btn.id === "qa-run-new-ui") {
+            await runNewUI(report);
+            status.textContent = "새 검사 화면 검증 통과";
+          } else if (btn.id === "qa-run-price-input") {
+            status.textContent = "가격 입력 검사 중";
+            const log = { journey: "price-input", passed: false };
+            report.cases.push(log);
+            await runPriceInput(log);
+            status.textContent = "가격 입력 2단계 통과";
+          } else if (btn.id === "qa-run-shipping-preview") {
             await command("build");
             status.textContent = "배송 오버레이 검사 중";
             const log = { journey: "shipping-preview", passed: false };
@@ -717,12 +897,7 @@
             status.textContent = "배송 수정안 통과";
           } else {
             await command("build");
-            for (const spec of cases) {
-              status.textContent = spec.label + " 검사 중";
-              const log = { journey: spec.key, passed: false };
-              report.cases.push(log);
-              await runOne(spec, log);
-            }
+            await runJourneys(report);
             status.textContent = "세 여정 통과";
           }
           report.passed = true;

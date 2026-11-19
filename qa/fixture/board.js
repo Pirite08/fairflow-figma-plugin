@@ -1,5 +1,6 @@
 const PAGE_KEY = "fairflowBoardV1";
 const PROPOSALS_KEY = "fairflowProposalFixturesV1";
+const PRICE_INPUT_KEY = "fairflowPriceInputFixtureV1";
 let page;
 export function useCurrentPage() {
   page = figma.currentPage;
@@ -148,6 +149,70 @@ async function link(node, dst) {
 export function registered() {
   const value = page.getPluginData(PAGE_KEY);
   return value ? JSON.parse(value) : null;
+}
+
+export function priceInputFixture() {
+  const value = page.getPluginData(PRICE_INPUT_KEY);
+  return value ? JSON.parse(value) : null;
+}
+
+async function priceInputAmounts(board, fee, total) {
+  await Promise.all([
+    replaceText(board.detailFee, "배송비 1개당 " + fee + "원"),
+    replaceText(board.fee, "배송비 " + fee + "원"),
+    replaceText(board.total, "결제 예정 금액 " + total + "원"),
+  ]);
+}
+
+export async function preparePriceInputFixture() {
+  await fonts();
+  let board = priceInputFixture();
+  if (board && (await Promise.all(Object.values(board).map(id => figma.getNodeByIdAsync(id))))
+    .every(node => node && !node.removed)) {
+    await priceInputAmounts(board, "40,000", "102,000");
+    await replaceText(board.first, "62,000원");
+    await replaceText(board.struck, "125,000원");
+    (await get(board.struck)).textDecoration = "STRIKETHROUGH";
+    focus(await get(board.start));
+    return;
+  }
+  const x = page.children.reduce((edge, node) => Math.max(edge, node.x + node.width + 130), 0);
+  placed = [];
+  try {
+    const list = screen("06A · 코트 목록", x, 0, "상품 / 목록", "의류 목록", "상품을 눌러 상세를 확인하세요.");
+    const detail = screen("06B · 코트 상세", x + 420, 0, "상품 / 상세", "울 코트 상세", "배송비를 확인하고 주문으로 이동하세요.");
+    const order = screen("06C · 코트 결제", x + 840, 0, "주문 / 금액", "결제 명세", "울 코트 한 개의 금액 내역입니다.");
+    const card = box(list, "상품 카드", 22, 211, 316, 154, pale, 12);
+    words(card, "상품 이름", "울 코트", 17, 18, 19, ink, true);
+    const struck = words(card, "정가", "125,000원", 17, 53, 15, muted);
+    struck.textDecoration = "STRIKETHROUGH";
+    const first = words(card, "판매가", "62,000원", 17, 85, 26, green, true);
+    const detailFee = words(detail, "상세에서 공개한 비용", "배송비 1개당 40,000원", 22, 225, 16, muted);
+    const next = tile(detail, "Button / 주문 내역", "주문 내역 확인", 22, 348, 316, 50, green, white, 16)[0];
+    const summary = box(order, "주문 명세", 22, 211, 316, 165, white, 12);
+    words(summary, "상품가", "상품 62,000원", 16, 18, 15, ink);
+    const fee = words(summary, "결제 명세의 비용", "배송비 40,000원", 16, 55, 15, ink);
+    const total = words(summary, "결제 총액", "결제 예정 금액 102,000원", 16, 112, 18, green, true);
+    await link(card, detail);
+    await link(next, order);
+    board = { start: list.id, detail: detail.id, checkout: order.id, card: card.id, next: next.id,
+      first: first.id, struck: struck.id, detailFee: detailFee.id, fee: fee.id, total: total.id };
+    page.flowStartingPoints = extraStart(page.flowStartingPoints, list.id, "06 가격 입력");
+    page.setPluginData(PRICE_INPUT_KEY, JSON.stringify(board));
+    focus(list);
+    placed = null;
+  } catch (error) {
+    const nodes = placed || [];
+    placed = null;
+    for (const node of nodes.reverse()) if (!node.removed) node.remove();
+    throw error;
+  }
+}
+
+export async function editPriceInputFixture() {
+  const board = priceInputFixture();
+  if (!board) throw Error("가격 입력 QA 여정이 없습니다.");
+  await priceInputAmounts(board, "41,000", "103,000");
 }
 
 function textProperty(component, text, name) {

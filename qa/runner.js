@@ -2,7 +2,10 @@
 import "../src/main.js";
 import { analyzeJourney } from "../src/analyze.js";
 import { readJourney } from "../src/reader.js";
-import { build, prepareProposalFixtures, proposalFixtures, registered, state, useCurrentPage } from "./fixture/board.js";
+import {
+  build, editPriceInputFixture, preparePriceInputFixture, prepareProposalFixtures, priceInputFixture,
+  proposalFixtures, registered, state, useCurrentPage,
+} from "./fixture/board.js";
 
 function inView(rect) {
   const viewport = figma.viewport.bounds;
@@ -151,6 +154,8 @@ figma.ui.on("message", async (message) => {
   try {
     if (operation === "build") await build();
     if (operation === "prepare-proposals") await prepareProposalFixtures();
+    if (operation === "prepare-price-input") await preparePriceInputFixture();
+    if (operation === "edit-price-input") await editPriceInputFixture();
     if (["risk", "start", "fix", "edit"].includes(operation)) {
       if (!["shipping", "hierarchy", "price"].includes(journey))
         throw Error("Unknown fixture journey");
@@ -162,7 +167,7 @@ figma.ui.on("message", async (message) => {
     }
     const proposalOperation = operation === "start-proposal" || operation === "inspect-proposals";
     const boards = proposalOperation ? proposalFixtures() : registered();
-    const board = boards && boards[journey];
+    const board = journey === "price-input" ? priceInputFixture() : boards && boards[journey];
     const root = board && (await figma.getNodeByIdAsync(board.start));
     if (operation === "start-proposal" && root) {
       figma.currentPage.selection = [root];

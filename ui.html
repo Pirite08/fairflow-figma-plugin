@@ -7,238 +7,323 @@
   <style>
     :root {
       color-scheme: light;
-      font-family: Inter, "Malgun Gothic", system-ui, sans-serif;
-      color: #1c3029;
-      background: #f8f9f6;
-      font-size: 13px;
-      line-height: 1.55;
+      --paper: #f6f7f4;
+      --surface: #fff;
+      --raised: #eef1ed;
+      --line: #dce2dc;
+      --line-strong: #b8c5bc;
+      --ink: #212c26;
+      --secondary: #46564d;
+      --muted: #53655a;
+      --accent: #24563f;
+      --accent-hover: #19442f;
+      --risk: #8b382d;
+      --risk-soft: #fbede9;
+      --caution: #75531d;
+      --caution-soft: #faf1df;
+      --positive: #315c43;
+      --positive-soft: #eaf2ec;
+      font-family: "Pretendard", "Noto Sans KR", "Malgun Gothic", system-ui, sans-serif;
+      color: var(--ink);
+      background: var(--paper);
+      font-size: 14px;
+      line-height: 1.5;
+      font-variant-numeric: tabular-nums;
     }
     * { box-sizing: border-box; }
     body { margin: 0; height: 100vh; display: flex; flex-direction: column; }
     h1, h2, h3, p { margin: 0; }
     button { font: inherit; cursor: pointer; }
-    button:disabled { cursor: wait; opacity: .55; }
-    :focus-visible { outline: 3px solid #377ab6; outline-offset: 3px; }
+    button:disabled { cursor: default; opacity: .55; }
+    :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
     button, summary { -webkit-tap-highlight-color: transparent; }
     [hidden] { display: none !important; }
     .masthead {
-      display: flex; flex: none; align-items: center; justify-content: space-between; gap: 10px;
-      border-bottom: 1px solid #d6e0d8; background: #fff; padding: 12px 18px;
+      display: flex; flex: none; align-items: center; justify-content: space-between; gap: 12px;
+      min-height: 64px; border-bottom: 1px solid var(--line); background: var(--surface); padding: 12px 20px;
     }
-    .brand { display: inline-flex; align-items: center; gap: 9px; font-size: 18px; font-weight: 750; letter-spacing: -.6px; }
+    .brand { display: inline-flex; align-items: center; gap: 8px; font-size: 17px; font-weight: 600; }
     .mark {
-      position: relative; width: 26px; height: 26px; border-radius: 7px; background: #214e3f;
+      position: relative; flex: none; width: 24px; height: 24px; border-radius: 6px; background: var(--accent);
     }
     .mark::before, .mark::after {
-      content: ""; position: absolute; height: 4px; background: #cbee9c;
+      content: ""; position: absolute; height: 3px; background: var(--surface);
       transform: skewY(-25deg); border-radius: 1px;
     }
-    .mark::before { left: 6px; top: 7px; width: 14px; }
-    .mark::after { left: 6px; top: 14px; width: 9px; }
-    .scan-tools { display: grid; justify-items: end; gap: 3px; min-width: 0; }
+    .mark::before { left: 6px; top: 7px; width: 12px; }
+    .mark::after { left: 6px; top: 13px; width: 8px; }
+    .scan-tools { display: grid; justify-items: end; gap: 4px; min-width: 0; }
     .selection-info {
-      max-width: min(220px, 42vw); overflow: hidden; color: #446553; font-size: 11px;
+      max-width: min(264px, 56vw); overflow: hidden; color: var(--muted); font-size: 12px;
       text-align: right; text-overflow: ellipsis; white-space: nowrap;
     }
-    main { flex: 1; overflow: auto; min-height: 0; padding: 18px; scrollbar-gutter: stable; }
+    main { flex: 1; overflow: auto; min-height: 0; padding: 20px; scrollbar-gutter: stable; }
     .summary {
-      padding: 0 0 14px; border-bottom: 1px solid #dce6dc;
+      padding: 0 0 16px; border-bottom: 1px solid var(--line);
     }
-    .summary-line { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+    .summary-line { display: grid; gap: 12px; }
     .summary-line > div { min-width: 0; }
+    .summary-outcome { display: flex; align-items: center; justify-content: space-between; gap: 4px 12px; flex-wrap: wrap; }
     .risk-count {
-      background: #e9f1e9; color: #2c533d; font-size: 12px; font-weight: 750;
-      border-radius: 5px; padding: 4px 8px; white-space: nowrap;
+      display: inline-flex; align-items: center; gap: 8px; color: var(--positive); font-size: 14px; font-weight: 600;
     }
-    .risk-count[data-risk="true"] { background: #fbe8df; color: #8d351f; }
-    .eyebrow, .mini-heading { color: #46634e; font-size: 11px; font-weight: 700; }
-    h1 { font-size: 21px; letter-spacing: -.7px; line-height: 1.35; overflow-wrap: anywhere; }
-    .summary h1 { margin: 3px 0 0; }
-    .confirm-start { margin-top: 11px; border-top: 1px solid #ccd9cb; padding-top: 9px; color: #43594a; font-size: 12px; }
+    .risk-count::before { content: ""; flex: none; width: 8px; height: 8px; background: currentColor; border-radius: 50%; }
+    .risk-count[data-tone="risk"] { color: var(--risk); }
+    .risk-count[data-tone="pending"] { color: var(--caution); }
+    .summary-note { margin-top: 4px; color: var(--secondary); font-size: 13px; }
+    .summary-jump { padding: 4px 0; border: 0; background: none; color: var(--accent); text-decoration: underline; text-underline-offset: 4px; font-size: 13px; }
+    .eyebrow, .mini-heading { color: var(--muted); font-size: 12px; font-weight: 500; }
+    h1 { font-size: 22px; font-weight: 600; line-height: 1.35; overflow-wrap: anywhere; }
+    .summary h1 { margin-top: 4px; }
+    .confirm-start { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 8px; color: var(--secondary); font-size: 13px; }
     .confirm-start button {
-      margin-top: 6px; border: 1px solid #a2b5a4; border-radius: 5px; padding: 5px 8px;
-      color: #2e523a; background: #fff; font-weight: 650;
+      margin-top: 8px; border: 1px solid var(--line-strong); border-radius: 8px; padding: 4px 12px;
+      min-height: 32px; color: var(--accent); background: var(--surface); font-weight: 600;
     }
-    .confirm-start button:hover { border-color: #74947d; }
-    .shipping, .proposal { margin-top: 12px; padding: 13px; border: 1px solid #cad7c9; border-radius: 9px; background: #fff; }
-    .shipping h2, .proposal h2 { margin: 3px 0 5px; font-size: 15px; letter-spacing: -.35px; }
-    .shipping-intro, .shipping-message { color: #45594b; font-size: 12px; }
-    .shipping-message[role="alert"] { margin-top: 6px; color: #8d351f; }
-    .shipping-action { margin-top: 9px; border-radius: 5px; padding: 6px 10px; font-weight: 650; }
-    .shipping-actions { display: flex; gap: 6px; flex-wrap: wrap; }
-    .shipping-options { display: flex; flex-wrap: wrap; gap: 4px; margin: 9px 0; padding: 0; border: 0; min-width: 0; }
-    .shipping-options legend { padding: 0 0 4px; color: #475c4d; font-size: 11px; font-weight: 700; }
+    .confirm-start button:hover { background: var(--raised); }
+    .shipping, .proposal { margin-top: 12px; padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+    .shipping h2, .proposal h2 { margin: 0 0 4px; font-size: 16px; font-weight: 600; }
+    .shipping-intro, .shipping-message { color: var(--secondary); font-size: 13px; }
+    .shipping-message[role="alert"] { margin-top: 8px; color: var(--risk); }
+    .shipping-action { margin-top: 8px; border-radius: 8px; min-height: 32px; padding: 4px 12px; font-weight: 600; }
+    .shipping-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .shipping-options { display: flex; flex-wrap: wrap; gap: 4px; margin: 8px 0; padding: 0; border: 0; min-width: 0; }
+    .shipping-options legend { padding: 0 0 4px; color: var(--muted); font-size: 12px; font-weight: 600; }
     .shipping-choice { position: relative; cursor: pointer; }
     .shipping-choice input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
-    .shipping-choice span { display: block; padding: 4px 7px; border: 1px solid #d0dbd1; border-radius: 4px; color: #385040; font-size: 12px; }
-    .shipping-choice input:checked + span { background: #23503c; border-color: #23503c; color: #fff; }
-    .shipping-choice input:focus-visible + span { outline: 3px solid #377ab6; outline-offset: 2px; }
-    .shipping-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 8px; align-items: center; border-top: 1px solid #e0e7de; padding: 8px 0; }
+    .shipping-choice span { display: flex; align-items: center; min-height: 32px; padding: 4px 8px; border: 1px solid var(--line); border-radius: 8px; color: var(--secondary); font-size: 12px; }
+    .shipping-choice input:checked + span { background: var(--accent); border-color: var(--accent); color: var(--surface); }
+    .shipping-choice input:focus-visible + span { outline: 3px solid var(--accent); outline-offset: 2px; }
+    .shipping-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 8px; align-items: center; border-top: 1px solid var(--line); padding: 8px 0; }
     .shipping-row-title { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-    .shipping-link { padding: 0; border: 0; background: transparent; color: #26573e; font: inherit; text-align: left; text-underline-offset: 3px; text-decoration: underline; }
-    .shipping-row-title .shipping-link { font-weight: 700; }
-    .shipping-link:disabled { color: #627067; cursor: default; }
-    .shipping-status, .shipping-default, .shipping-fee { color: #4d5e50; font-size: 11px; }
-    .shipping-row[data-status="risk_signal"] .shipping-status { color: #8d351f; }
-    .shipping-row[data-status="needs_context"] .shipping-status { color: #77571c; }
+    .shipping-link { padding: 0; border: 0; background: transparent; color: var(--accent); font: inherit; text-align: left; text-underline-offset: 3px; text-decoration: underline; }
+    .shipping-row-title .shipping-link { font-weight: 600; }
+    .shipping-link:disabled { color: var(--muted); cursor: default; }
+    .shipping-status, .shipping-default, .shipping-fee { color: var(--secondary); font-size: 12px; }
+    .shipping-row[data-status="risk_signal"] .shipping-status { color: var(--risk); }
+    .shipping-row[data-status="needs_context"] .shipping-status { color: var(--caution); }
     .shipping-amount { text-align: right; font-size: 15px; font-variant-numeric: tabular-nums; }
     .shipping-fee { text-align: right; }
-    .shipping-row > .shipping-link { justify-self: end; grid-column: 2; font-size: 11px; }
-    .preview { margin: 12px 0 10px; padding: 10px; border: 1px solid #cddccc; border-radius: 8px; background: #f9faf7; scroll-margin-top: 8px; }
+    .shipping-row > .shipping-link { justify-self: end; grid-column: 2; font-size: 12px; }
+    .preview { margin: 12px 0 8px; padding: 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--raised); scroll-margin-top: 8px; }
     .preview-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
     .preview-heading h3 { font-size: 14px; }
     .preview-switch { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
     .preview-switch button, .preview-tools button, .preview-routes button {
-      padding: 4px 7px; border: 1px solid #b9c9bc; border-radius: 5px; color: #254b38; background: #fff; font-size: 11px; font-weight: 650;
+      min-height: 32px; padding: 4px 8px; border: 1px solid var(--line-strong); border-radius: 8px; color: var(--ink); background: var(--surface); font-size: 12px; font-weight: 600;
     }
-    .preview-switch button[aria-pressed="true"], .preview-tools button[aria-pressed="true"] { color: #fff; background: #28563f; border-color: #28563f; }
-    .preview-tools { display: flex; align-items: center; flex-wrap: wrap; gap: 5px 8px; margin: 8px 0 0; color: #405548; font-size: 11px; }
-    .preview-tools input { flex: 1; min-width: 58px; accent-color: #28563f; }
+    .preview-switch button[aria-pressed="true"], .preview-tools button[aria-pressed="true"] { color: var(--surface); background: var(--accent); border-color: var(--accent); }
+    .preview-tools { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; margin: 8px 0 0; color: var(--secondary); font-size: 12px; }
+    .preview-tools input { flex: 1; min-width: 58px; accent-color: var(--accent); }
     .preview-stage {
-      display: flex; justify-content: center; align-items: center; padding: 9px; margin: 8px 0;
-      border: 1px solid #dce5db; border-radius: 6px; background: #ecf1eb;
+      display: flex; justify-content: center; align-items: center; padding: 8px; margin: 8px 0;
+      border: 1px solid var(--line); border-radius: 6px; background: var(--raised);
     }
-    .preview-canvas { position: relative; width: 100%; background: #fff; overflow: hidden; box-shadow: 0 1px 6px #16372420; }
+    .preview-canvas { position: relative; width: 100%; background: var(--surface); overflow: hidden; box-shadow: 0 1px 2px #0000001a; }
     .preview-plane, .preview-plane img, .preview-markers { position: absolute; left: 0; top: 0; }
     .preview-plane img, .preview-markers { width: 100%; height: 100%; }
     .preview-plane img { object-fit: fill; }
     .preview-markers { pointer-events: none; }
-    .preview-marker, .preview-hotspot { position: absolute; padding: 0; border: 2px solid #28694b; border-radius: 4px; background: #c3f1c322; pointer-events: auto; }
+    .preview-marker, .preview-hotspot { position: absolute; padding: 0; border: 2px solid var(--accent); border-radius: 4px; background: #c3f1c322; pointer-events: auto; }
     .preview-marker:hover, .preview-hotspot:hover { background: #b5f4b844; }
     .preview-marker:focus-visible, .preview-hotspot:focus-visible { outline-offset: -2px; }
-    .preview-before { position: absolute; border: 1.5px dashed #9c4d32; border-radius: 4px; pointer-events: none; }
+    .preview-before { position: absolute; border: 1.5px dashed var(--risk); border-radius: 4px; pointer-events: none; }
     .preview-hotspot { border-style: dotted; border-color: #28563f9e; background: transparent; }
     .preview-list { display: grid; gap: 4px; margin-top: 6px; }
     .preview-list button { width: 100%; }
     .preview-list .proposal-step-detail { font-weight: 400; }
     .preview-routes { display: flex; gap: 4px; flex-wrap: wrap; }
-    .preview-routes button:hover, .preview-tools button:not([aria-pressed="true"]):hover { background: #eaf1e8; }
+    .preview-routes button:hover, .preview-tools button:not([aria-pressed="true"]):hover { background: var(--raised); }
     .preview-order { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; padding: 7px 0; }
-    .preview-order p { color: #405548; font-size: 11px; }
+    .preview-order p { color: var(--secondary); font-size: 12px; }
     .preview-order strong { font-size: 17px; font-variant-numeric: tabular-nums; }
-    .preview-adopted { margin-top: 7px; color: #2b583d; font-size: 11px; overflow-wrap: anywhere; }
-    .proposal-row { padding: 9px 0; border-top: 1px solid #e0e7de; }
-    .proposal-row:first-of-type { margin-top: 9px; }
-    .proposal-row-title { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; font-size: 13px; }
+    .preview-adopted { margin-top: 7px; color: var(--positive); font-size: 12px; overflow-wrap: anywhere; }
+    .proposal-row { padding: 8px 0; border-top: 1px solid var(--line); }
+    .proposal-row:first-of-type { margin-top: 8px; }
+    .proposal-row-title { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; }
     .proposal-status {
-      border-radius: 4px; padding: 1px 5px; background: #e5efe6; color: #386348; font-size: 11px; font-weight: 700;
+      border-radius: 4px; padding: 1px 5px; background: var(--positive-soft); color: var(--positive); font-size: 12px; font-weight: 600;
     }
-    .proposal-row[data-status="risk_signal"] .proposal-status { background: #fae9df; color: #8d351f; }
-    .proposal-row[data-status="needs_context"] .proposal-status { background: #f5edcf; color: #705016; }
-    .proposal-summary { margin-top: 5px; color: #405548; font-size: 12px; }
+    .proposal-row[data-status="risk_signal"] .proposal-status { background: var(--risk-soft); color: var(--risk); }
+    .proposal-row[data-status="needs_context"] .proposal-status { background: var(--caution-soft); color: var(--caution); }
+    .proposal-summary { margin-top: 5px; color: var(--secondary); font-size: 12px; }
     .proposal-steps { margin: 5px 0 0; padding: 0; list-style: none; }
     .proposal-steps li + li { margin-top: 4px; }
     .proposal-step {
       display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 1px 8px;
-      width: 100%; padding: 6px 8px; border: 1px solid #dfe8de; border-radius: 5px; background: #f6f8f3;
-      color: #294d3a; text-align: left; overflow-wrap: anywhere;
+      width: 100%; padding: 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface);
+      color: var(--ink); text-align: left; overflow-wrap: anywhere;
     }
-    .proposal-step:not(:disabled):hover { background: #edf3e9; border-color: #a2b9a4; }
+    .proposal-step:not(:disabled):hover { background: var(--raised); border-color: var(--line-strong); }
     .proposal-step span { grid-column: 1; }
     .proposal-step::after { content: "↗"; grid-column: 2; grid-row: 1 / 3; font-size: 13px; }
     .proposal-step:disabled::after { content: none; }
-    .proposal-step-label { font-size: 12px; font-weight: 700; }
-    .proposal-step-detail { font-size: 11px; color: #4d5e50; }
+    .proposal-step-label { font-size: 12px; font-weight: 600; }
+    .proposal-step-detail { font-size: 12px; color: var(--secondary); }
     .finding {
-      margin-bottom: 8px; border: 1px solid #d4dcd5; border-radius: 9px; background: #fff;
-      --status-ink: #386348; --status-bg: #e5efe6;
+      border: 1px solid var(--line); border-radius: 12px; background: var(--surface);
+      --status-ink: var(--positive); --status-bg: var(--positive-soft);
     }
-    .findings { margin-top: 14px; }
-    .finding[data-status="risk_signal"] { border-color: #dfd3cc; --status-ink: #8d351f; --status-bg: #fae9df; }
-    .finding[data-status="needs_context"] { --status-ink: #705016; --status-bg: #f5edcf; }
+    .findings { display: grid; gap: 12px; margin-top: 16px; }
+    .findings:empty { display: none; }
+    .finding[data-status="risk_signal"] { --status-ink: var(--risk); --status-bg: var(--risk-soft); }
+    .finding[data-status="needs_context"] { --status-ink: var(--caution); --status-bg: var(--caution-soft); }
     summary { cursor: pointer; list-style: none; }
     summary::-webkit-details-marker { display: none; }
     .finding > summary {
       display: grid; grid-template-columns: minmax(0, 1fr) auto 7px;
-      align-items: center; gap: 8px; padding: 12px;
+      align-items: center; gap: 8px; padding: 12px 16px;
     }
-    .finding > summary::after, .warnings summary::after, .advanced-tools > summary::after, .other-findings > summary::after {
-      content: ""; width: 6px; height: 6px; border-right: 1.5px solid #708174;
-      border-bottom: 1.5px solid #708174; transform: rotate(45deg);
+    .finding > summary::after, .warnings summary::after, .advanced-tools > summary::after,
+    .other-findings > summary::after, .model-comparison > summary::after {
+      content: ""; flex: none; width: 6px; height: 6px; border-right: 1.5px solid var(--muted);
+      border-bottom: 1.5px solid var(--muted); transform: translateY(-2px) rotate(45deg);
     }
     .finding[open] > summary::after, .warnings[open] summary::after,
-    .advanced-tools[open] > summary::after, .other-findings[open] > summary::after { transform: rotate(225deg); }
-    .pattern { font-size: 14px; font-weight: 730; letter-spacing: -.35px; overflow-wrap: anywhere; }
-    .badge { color: var(--status-ink); background: var(--status-bg); padding: 2px 7px; border-radius: 4px; font-size: 11px; font-weight: 700; }
-    .finding-body { padding: 0 12px 13px; overflow-wrap: anywhere; }
-    .reason, .suggestion { color: #435349; font-size: 12px; }
+    .advanced-tools[open] > summary::after, .other-findings[open] > summary::after,
+    .model-comparison[open] > summary::after { transform: translateY(2px) rotate(225deg); }
+    .pattern { font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
+    .badge { color: var(--status-ink); background: var(--status-bg); padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 500; }
+    .finding-body { padding: 0 16px 16px; overflow-wrap: anywhere; }
+    .reason, .suggestion { color: var(--secondary); font-size: 13px; }
     .finding-body > .suggestion { margin-top: 8px; }
-    .review-title { font-size: 17px; line-height: 1.4; letter-spacing: -.4px; }
+    .review-title { font-size: 18px; font-weight: 600; line-height: 1.4; }
     .review-title + .reason, .review-alternative h4 + p { margin-top: 4px; }
     .review-rule {
-      margin-top: 11px; padding: 8px 10px; border-radius: 5px;
-      border-left: 3px solid #87948a; background: #f1f4f1; color: #334e40; font-size: 12px;
+      margin-top: 16px; padding: 8px 12px; border-radius: 6px;
+      border-left: 2px solid var(--line-strong); background: var(--raised); color: var(--ink); font-size: 13px;
     }
     .review-rule header { display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 8px; }
-    .review-citation { font-weight: 750; }
+    .review-citation { font-weight: 600; }
     .review-rule p { margin-top: 4px; }
-    .review-rule p + p { color: #45584d; margin-top: 3px; }
-    .review-solutions { margin-top: 13px; }
-    .review-solutions > h3 { margin-bottom: 6px; font-size: 13px; }
-    .review-grid, .design-thumbnails { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
+    .review-rule p + p { color: var(--secondary); margin-top: 4px; }
+    .review-solutions { margin-top: 16px; }
+    .review-solutions-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 4px 8px; margin-bottom: 8px; }
+    .review-solutions-heading h3 { font-size: 14px; font-weight: 600; }
+    .review-grid, .design-thumbnails { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
     .review-grid.single { grid-template-columns: minmax(0, 1fr); }
-    .review-alternative { border: 1px solid #dce6dd; padding: 8px; border-radius: 6px; min-width: 0; }
-    .review-alternative h4 { margin: 0; font-size: 12px; line-height: 1.45; }
-    .review-alternative p { color: #435349; font-size: 11px; line-height: 1.5; }
-    .review-sketch { display: grid; gap: 4px; margin-bottom: 6px; color: #284c3a; font-size: 11px; }
-    .review-sketch.checked, .review-sketch.buttons { background: #eff5ee; padding: 6px; border-radius: 4px; }
+    .review-alternative { border: 1px solid var(--line); padding: 12px; border-radius: 8px; min-width: 0; }
+    .review-alternative h4 { margin: 0; font-size: 13px; font-weight: 600; line-height: 1.5; }
+    .review-alternative p { color: var(--secondary); font-size: 12px; line-height: 1.5; }
+    .review-sketch { display: grid; gap: 4px; margin-bottom: 8px; color: var(--secondary); font-size: 12px; }
+    .review-sketch.checked, .review-sketch.buttons { background: var(--raised); padding: 8px; border-radius: 4px; }
     .sketch-option { display: flex; align-items: center; gap: 5px; white-space: normal; overflow-wrap: anywhere; }
-    .sketch-option::before { content: ""; flex: 0 0 9px; height: 9px; border: 1px solid #698171; background: #fff; border-radius: 2px; }
-    .sketch-option.default::before { background: #355944; }
-    .sketch-button { border: 1px solid #a7bcae; padding: 2px 5px; border-radius: 3px; font-weight: 650; }
-    .review-sketch.price { background: #eff5ee; padding: 5px 6px; border-radius: 4px; }
+    .sketch-option::before { content: ""; flex: 0 0 9px; height: 9px; border: 1px solid var(--line-strong); background: var(--surface); border-radius: 2px; }
+    .sketch-option.default::before { background: var(--accent); }
+    .sketch-button { border: 1px solid var(--line-strong); padding: 2px 5px; border-radius: 3px; font-weight: 600; }
+    .review-sketch.price { background: var(--raised); padding: 5px 6px; border-radius: 4px; }
     .review-sketch.price strong { font-size: 14px; font-variant-numeric: tabular-nums; }
     .copy-diff { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin: 6px 0; }
-    .copy-value { min-width: 0; padding: 6px 8px; border-radius: 4px; background: #f6f1ee; }
-    .copy-value:last-child { background: #edf5eb; }
+    .copy-value { min-width: 0; padding: 6px 8px; border-radius: 4px; background: var(--risk-soft); }
+    .copy-value:last-child { background: var(--positive-soft); }
     .copy-value strong { display: block; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; }
-    .review-cta { margin-top: 8px; border-radius: 5px; padding: 5px 8px; font-size: 11px; font-weight: 650; }
+    .review-cta { min-height: 32px; border-radius: 8px; padding: 4px 8px; font-size: 12px; font-weight: 600; }
     .design-thumbnails { margin: 7px 0; }
     .design-thumb {
       display: flex; flex-direction: column; align-items: center; min-width: 0;
-      padding: 6px; gap: 4px; border: 1px solid #dce5db; border-radius: 5px;
-      color: #264f39; background: #f7f9f5; font-size: 11px; font-weight: 650;
+      padding: 6px; gap: 4px; border: 1px solid var(--line); border-radius: 5px;
+      color: var(--accent); background: var(--raised); font-size: 12px; font-weight: 600;
     }
     .design-thumb img { display: block; width: 100%; height: 160px; object-fit: contain; }
-    .evidence { margin-top: 9px; display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
-    .evidence .mini-heading { color: #53665a; margin-right: 2px; }
+    .evidence { margin-top: 12px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+    .evidence .mini-heading { flex-basis: 100%; }
     .layer {
-      display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 4px 7px;
-      border: 1px solid #ced8cf; border-radius: 4px; color: #284c3a; background: #fff; font-size: 12px;
+      display: inline-flex; align-items: center; gap: 8px; max-width: 100%; min-height: 32px; padding: 4px 8px;
+      border: 1px solid var(--line); border-radius: 8px; color: var(--accent); background: var(--surface); font-size: 13px;
     }
-    .layer:hover { background: #edf3e9; border-color: #87a58c; }
-    .layer::before { content: ""; flex: none; width: 7px; height: 7px; border: 1px solid currentColor; transform: rotate(45deg); }
+    .layer:hover { background: var(--raised); border-color: var(--line-strong); }
+    .layer::after { content: "↗"; flex: none; font-size: 14px; line-height: 1; }
     .layer-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .advanced-tools, .other-findings {
-      margin-top: 10px; padding: 0 11px; border: 1px solid #d4dfd4; border-radius: 7px; background: #fff;
+    .advanced-tools, .other-findings, .model-comparison {
+      margin-top: 12px; padding: 0 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface);
     }
-    .advanced-tools > summary, .other-findings > summary {
+    .advanced-tools > summary, .other-findings > summary, .model-comparison > summary {
       display: flex; align-items: center; justify-content: space-between; gap: 8px;
-      padding: 9px 0; color: #2c4c3a; font-size: 12px; font-weight: 700;
+      min-height: 44px; padding: 8px 0; color: var(--ink); font-size: 13px; font-weight: 600;
     }
-    .advanced-tools[open], .other-findings[open] { padding-bottom: 3px; }
+    .advanced-tools[open], .other-findings[open] { padding-bottom: 8px; }
     .advanced-tools .shipping, .advanced-tools .proposal { margin: 0 0 8px; }
-    .empty-result { padding: 12px 0 3px; color: #435349; }
-    .warnings { margin-top: 12px; color: #695228; font-size: 12px; }
-    .warnings summary { display: flex; align-items: center; gap: 7px; font-weight: 700; }
+    .other-findings .finding + .finding { margin-top: 8px; }
+    .model-comparison-name { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; }
+    .model-comparison-difference { color: var(--caution); font-size: 12px; font-weight: 500; }
+    .model-comparison-table { width: 100%; border-collapse: collapse; text-align: left; font-size: 12px; }
+    .model-comparison-table th, .model-comparison-table td {
+      border-top: 1px solid var(--line); padding: 6px 7px 6px 0; vertical-align: top; overflow-wrap: anywhere;
+    }
+    .model-comparison-table thead { color: var(--muted); font-size: 12px; }
+    .model-comparison-table th[scope="row"] { width: 40%; font-weight: 600; }
+    .model-comparison-row[data-different="true"] th { color: var(--caution); }
+    .model-comparison-status { display: inline-block; font-weight: 600; color: var(--positive); }
+    .model-comparison-status[data-status="risk_signal"] { color: var(--risk); }
+    .model-comparison-status[data-status="needs_context"] { color: var(--caution); }
+    .model-comparison-score, .model-comparison-note { color: var(--secondary); font-size: 12px; }
+    .model-comparison-note { border-top: 1px solid var(--line); padding: 7px 0 8px; }
+    .price-input { margin-top: 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); scroll-margin-top: 8px; }
+    .price-input-heading {
+      display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 8px;
+      padding: 12px 16px; border-bottom: 1px solid var(--line);
+    }
+    .price-input-heading h2 { font-size: 16px; font-weight: 600; }
+    .price-input-status { color: var(--positive); font-size: 12px; font-weight: 500; }
+    .price-input[data-tone="risk"] .price-input-status { color: var(--risk); }
+    .price-input-stage { padding: 12px 16px 16px; }
+    .price-input-stage + .price-input-stage { border-top: 1px solid var(--line); }
+    .price-input-stage h3 { margin-bottom: 8px; color: var(--ink); font-size: 14px; font-weight: 600; }
+    .price-input-records { margin: 0; }
+    .price-input-row {
+      display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 4px 8px;
+      min-height: 36px; padding: 4px 0; font-size: 13px; overflow-wrap: anywhere;
+    }
+    .price-input-row + .price-input-row { border-top: 1px solid var(--line); }
+    .price-input-row dt { color: var(--secondary); }
+    .price-step-location { display: block; color: var(--muted); font-size: 12px; }
+    .price-input-row dd { display: flex; flex-wrap: wrap; align-items: center; justify-content: end; gap: 4px 12px; margin: 0; }
+    .price-input-value { font-size: 14px; font-weight: 600; }
+    .price-input-trail .price-input-row { position: relative; padding-left: 20px; border-top: 0; }
+    .price-input-trail .price-input-row::before { content: ""; position: absolute; left: 4px; inset-block: 0; width: 1px; background: var(--line-strong); }
+    .price-input-trail .price-input-row:first-child::before { top: 50%; }
+    .price-input-trail .price-input-row:last-child::before { bottom: 50%; }
+    .price-input-trail .price-input-row::after { content: ""; position: absolute; left: 1px; top: calc(50% - 4px); width: 8px; height: 8px; border: 2px solid var(--accent); border-radius: 50%; background: var(--surface); }
+    .price-input-trail .price-input-row:last-child .price-input-value { font-size: 18px; color: var(--accent); }
+    .price-input-evidence { min-height: 28px; font-size: 12px; text-decoration-thickness: 1px; }
+    .price-input-blockers, .price-input-muted { color: var(--secondary); font-size: 13px; }
+    .price-input-blockers { margin: 4px 0 0; padding: 0; list-style: none; overflow-wrap: anywhere; }
+    .price-input-question { min-width: 0; margin: 4px 0 0; padding: 0; border: 0; }
+    .price-input-question legend { padding: 0; font-weight: 600; overflow-wrap: anywhere; }
+    .price-input-answers { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
+    .price-input-answers button { min-height: 36px; padding: 4px 8px; border-radius: 8px; font-size: 13px; font-weight: 500; }
+    .price-input-score { font-size: 14px; font-weight: 600; }
+    .price-input-details { margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--line); }
+    .price-input-details summary { display: flex; align-items: center; gap: 8px; min-height: 28px; color: var(--muted); font-size: 12px; }
+    .price-input-details summary::after { content: ""; width: 5px; height: 5px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: translateY(-2px) rotate(45deg); }
+    .price-input-details[open] summary::after { transform: translateY(2px) rotate(225deg); }
+    .price-input-reset { min-height: 32px; margin-top: 4px; font-size: 13px; }
+    .warnings { margin-top: 12px; color: var(--caution); font-size: 12px; }
+    .warnings summary { display: flex; align-items: center; gap: 7px; font-weight: 600; }
     .warnings ul { margin: 6px 0 0; padding-left: 18px; }
     .warnings li { overflow-wrap: anywhere; }
-    .message { display: flex; align-items: flex-start; gap: 12px; margin: 6px 0; padding: 16px; border: 1px solid #d5ded3; border-radius: 8px; background: #fff; }
-    .message h1 { margin: 0 0 5px; font-size: 18px; }
-    .message p { color: #475a4c; }
-    .frame-icon { border: 1.5px dashed #779381; border-radius: 5px; flex: 0 0 29px; height: 24px; margin-top: 2px; background: #eef4ed; }
-    .actions { display: flex; gap: 5px; }
-    .actions button { min-height: 34px; border-radius: 6px; padding: 4px 9px; font-size: 12px; font-weight: 700; }
-    .primary { color: #fff; border: 1px solid #234c39; background: #28563f; }
-    .primary:hover { background: #1d4632; }
-    .secondary { color: #294d3a; background: #fff; border: 1px solid #b9c9bc; }
-    .secondary:hover { background: #f1f5ee; }
+    .message { display: flex; align-items: flex-start; gap: 12px; padding: 20px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+    .message h1 { margin-bottom: 4px; font-size: 20px; }
+    .message p { color: var(--secondary); }
+    .frame-icon { position: relative; border: 1.5px dashed var(--line-strong); border-radius: 8px; flex: 0 0 36px; height: 36px; margin-top: 2px; background: var(--raised); }
+    .frame-icon::before { content: ""; position: absolute; inset: 8px; border: 1.5px solid var(--accent); border-radius: 2px; }
+    .actions { display: flex; gap: 8px; }
+    .actions button { min-height: 36px; border-radius: 8px; padding: 4px 12px; font-size: 13px; font-weight: 600; white-space: nowrap; }
+    .primary { color: var(--surface); border: 1px solid var(--accent); background: var(--accent); }
+    .primary:not(:disabled):hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+    .secondary { color: var(--ink); background: var(--surface); border: 1px solid var(--line-strong); }
+    .secondary:not(:disabled):hover, summary:hover { background: var(--raised); }
+    @media (prefers-reduced-motion: no-preference) {
+      .primary, .secondary, .layer { transition: background-color 120ms ease-out, border-color 120ms ease-out; }
+    }
     #notice:empty { display: none; }
-    #notice:not(:empty) { flex: none; margin: 0; padding: 6px 18px; color: #365442; background: #edf3e9; }
+    #notice:not(:empty) { flex: none; margin: 0; padding: 8px 20px; color: var(--secondary); background: var(--raised); }
     .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-    @media (max-width: 360px) {
-      main, .masthead { padding-left: 10px; padding-right: 10px; }
-      .brand { font-size: 15px; gap: 6px; }
+    @media (max-width: 400px) {
+      main, .masthead, #notice:not(:empty) { padding-inline: 12px; }
+      .masthead, .actions { gap: 4px; }
+      .actions button { padding-inline: 8px; font-size: 12px; }
+      .brand { font-size: 15px; }
       .review-grid { grid-template-columns: minmax(0, 1fr); }
     }
   </style>
@@ -296,6 +381,7 @@
     let selectionKnown = false;
     let rescanAvailable = false;
     let controlsBusy = false;
+    let pendingScan = null;
     const proposalStates = new Map();
     let shippingOffer = null;
     let comparison = null;
@@ -303,6 +389,7 @@
     let shippingBusy = false;
     let shippingError = '';
     const adoptedShipping = new Map();
+    let pendingPriceAnswer = null;
     const newShippingPreview = () => ({
       open: false, busy: false, action: '', error: '', data: null,
       key: 'minimal', mode: 'overlay', route: null, opacity: 100, peek: false
@@ -329,21 +416,23 @@
 
     function showControls(canRescan, busy) {
       rescanAvailable = canRescan;
-      controlsBusy = busy;
+      controlsBusy = busy || Boolean(pendingScan || pendingPriceAnswer);
       const anotherFrame = selected && selected.id !== inspectedRoot;
       scan.hidden = !canRescan;
-      scan.disabled = busy;
+      scan.disabled = controlsBusy;
       scan.className = anotherFrame ? 'secondary' : 'primary';
+      scan.textContent = pendingScan === 'scan' ? '검사 중…' : '다시 검사';
       scanSelection.hidden = canRescan && selectionKnown && !anotherFrame;
-      scanSelection.disabled = busy || (selectionKnown && !selected);
-      scanSelection.textContent = busy && !canRescan ? '검사 중…' : canRescan ? '선택 검사' : '검사';
+      scanSelection.disabled = controlsBusy || !selected;
+      scanSelection.textContent = pendingScan === 'scan-selection' || (controlsBusy && !canRescan)
+        ? '검사 중…' : canRescan ? '선택한 프레임 검사' : '검사';
       scanSelection.className = canRescan && !anotherFrame ? 'secondary' : 'primary';
-      selectionInfo.hidden = !canRescan || !anotherFrame || busy;
-      selectionInfo.textContent = anotherFrame ? '선택됨 · ' + selected.name : '';
+      selectionInfo.hidden = !canRescan || !anotherFrame || controlsBusy;
+      selectionInfo.textContent = anotherFrame ? '현재 선택 · ' + selected.name : '';
       selectionInfo.title = anotherFrame ? selected.name : '';
     }
 
-    function showMessage(title, body, loading = false) {
+    function showMessage(title, body, { loading = false, canRescan = false } = {}) {
       shippingHost = null;
       proposalHost = null;
       advancedTools = null;
@@ -357,12 +446,19 @@
       content.setAttribute('aria-busy', String(loading));
       announcement.textContent = title;
       notice.textContent = '';
-      showControls(false, loading);
+      showControls(canRescan, loading);
     }
 
     function showSelection() {
-      if (selected) showMessage(selected.name, '검사를 누르면 이 프레임과 연결된 화면을 확인합니다.');
-      else showMessage('프레임을 선택하세요', 'Figma 캔버스에서 검사할 프레임 1개를 선택합니다.');
+      if (selected) showMessage(selected.name, '검사를 누르면 연결된 화면까지 확인합니다.');
+      else showMessage('검사할 프레임을 선택하세요', '캔버스에서 구매나 구독 흐름의 첫 화면을 선택하세요.');
+    }
+
+    function startScan(type) {
+      if (controlsBusy) return;
+      pendingScan = type;
+      showControls(rescanAvailable, true);
+      send({ type });
     }
 
     function money(value) {
@@ -1008,7 +1104,9 @@
       const solution = element('section', 'review-solutions');
       const design = alternatives.some(alternative => alternative.kind === 'design');
       const grid = element('div', 'review-grid' + (alternatives.length === 1 ? ' single' : ''));
-      solution.append(element('h3', '', design ? '화면을 바꾸는 방법' : '문구를 바꾸는 방법'), grid);
+      const heading = element('div', 'review-solutions-heading');
+      heading.append(element('h3', '', design ? '화면을 바꾸는 방법' : '문구를 바꾸는 방법'));
+      solution.append(heading, grid);
       alternatives.forEach((alternative, index) => grid.append(reviewAlternative(alternative, index)));
       const kind = designKinds[finding.pattern];
       const available = kind === 'shipping' ? shippingOffer : proposalStates.get(kind)?.offer?.available;
@@ -1018,21 +1116,25 @@
           advancedTools.hidden = false;
           advancedTools.open = true;
           advancedTools.querySelector('#' + kind + '-create')?.click();
-          advancedTools.querySelector(kind === 'shipping' ? '#shipping' : '#' + kind + '-proposal')
-            ?.scrollIntoView?.({block: 'start'});
+          const destination = advancedTools.querySelector(kind === 'shipping' ? '#shipping' : '#' + kind + '-proposal');
+          if (destination) {
+            destination.tabIndex = -1;
+            destination.scrollIntoView?.({ block: 'start' });
+            destination.focus?.({ preventScroll: true });
+          }
         });
         button.dataset.reviewDesign = kind;
-        solution.append(button);
+        heading.append(button);
       }
       return solution;
     }
 
-    function findingCard(finding) {
+    function findingCard(finding, expand = false) {
       const status = Object.hasOwn(statuses, finding.status) ? finding.status : 'needs_context';
       const pattern = Object.hasOwn(patternNames, finding.pattern) ? patternNames[finding.pattern] : finding.title;
       const card = element('details', 'finding');
       card.dataset.status = status;
-      card.open = status === 'risk_signal';
+      card.open = expand;
       const summary = element('summary');
       summary.append(element('span', 'pattern', pattern), element('span', 'badge', statuses[status].label));
       const body = element('div', 'finding-body');
@@ -1045,7 +1147,7 @@
       }
       if (finding.evidence && finding.evidence.length) {
         const evidence = element('div', 'evidence');
-        evidence.append(element('p', 'mini-heading', '근거 레이어'));
+        evidence.append(element('p', 'mini-heading', '캔버스에서 근거 보기'));
         finding.evidence.forEach(ref => {
           const name = ref.label || ('레이어 ' + ref.node_id);
           const button = element('button', 'layer');
@@ -1063,7 +1165,169 @@
       return card;
     }
 
+    function modelComparison(entries) {
+      if (!Array.isArray(entries)) return null;
+      const rows = entries.filter(entry => entry && Object.hasOwn(patternNames, entry.pattern) &&
+        Object.hasOwn(statuses, entry.ruleStatus) && Object.hasOwn(statuses, entry.modelStatus));
+      if (!rows.length) return null;
+
+      const details = element('details', 'model-comparison');
+      const summary = element('summary');
+      const title = element('span', 'model-comparison-name', '판별 방식 비교');
+      const differences = rows.filter(row => row.ruleStatus !== row.modelStatus).length;
+      if (differences) title.append(element('span', 'model-comparison-difference', '결과 다름 ' + differences + '개'));
+      summary.append(title);
+
+      const table = element('table', 'model-comparison-table');
+      const head = element('thead');
+      const columns = element('tr');
+      for (const label of ['검사 유형', '기존 규칙', '로지스틱 회귀']) {
+        const column = element('th', '', label);
+        column.setAttribute('scope', 'col');
+        columns.append(column);
+      }
+      head.append(columns);
+      const body = element('tbody');
+      for (const entry of rows) {
+        const row = element('tr', 'model-comparison-row');
+        const different = entry.ruleStatus !== entry.modelStatus;
+        row.dataset.pattern = entry.pattern;
+        row.dataset.different = String(different);
+        const name = element('th', '', patternNames[entry.pattern]);
+        name.setAttribute('scope', 'row');
+        if (different) name.append(element('p', 'model-comparison-difference', '결과 다름'));
+        row.append(name);
+        for (const [status, score] of [[entry.ruleStatus, null], [entry.modelStatus, entry.score]]) {
+          const cell = element('td');
+          const badge = element('span', 'model-comparison-status', statuses[status].label);
+          badge.dataset.status = status;
+          cell.append(badge);
+          if (Number.isFinite(score) && score >= 0 && score <= 1) {
+            cell.append(element('p', 'model-comparison-score', '위험 점수 ' + Math.floor(score * 100) + '점'));
+          }
+          row.append(cell);
+        }
+        body.append(row);
+      }
+      table.append(head, body);
+      details.append(summary, table, element('p', 'model-comparison-note',
+        '위 검사 결과는 기존 규칙 기준입니다. 합성 사례로 학습한 모델의 위험 점수(0~100점)는 참고용입니다.'));
+      return details;
+    }
+
+    function priceInputRecords(entries, trail = false) {
+      if (!Array.isArray(entries) || !entries.length) return null;
+      const list = element('dl', 'price-input-records' + (trail ? ' price-input-trail' : ''));
+      for (const entry of entries) {
+        if (!entry || typeof entry.label !== 'string') continue;
+        const value = typeof entry.value === 'string' ? entry.value : money(entry.value);
+        const row = element('div', 'price-input-row');
+        const description = element('dd');
+        description.append(element('span', 'price-input-value', value));
+        const ref = entry.evidence;
+        if (typeof ref?.state_id === 'string' && typeof ref?.node_id === 'string') {
+          const button = panelButton('레이어 보기', 'shipping-link price-input-evidence',
+            () => send({ type: 'focus', state_id: ref.state_id, node_id: ref.node_id }));
+          button.dataset.priceEvidence = '';
+          button.dataset.stateId = ref.state_id;
+          button.dataset.nodeId = ref.node_id;
+          button.setAttribute('aria-label', entry.label + ' 근거 레이어 보기');
+          description.append(button);
+        }
+        const [label, ...location] = trail ? entry.label.split(' · ') : [entry.label];
+        const term = element('dt', '', label);
+        if (location.length) term.append(element('span', 'price-step-location', location.join(' · ')));
+        row.append(term, description);
+        list.append(row);
+      }
+      return list;
+    }
+
+    function updatePriceInput(result, buttons, request) {
+      if (pendingPriceAnswer || controlsBusy) return;
+      pendingPriceAnswer = { rootId: result.rootId, buttons };
+      buttons.forEach(button => { button.disabled = true; });
+      showControls(rescanAvailable, true);
+      send({ ...request, scanVersion: result.scanVersion, rootId: result.rootId });
+    }
+
+    function priceInputSection(result) {
+      const input = result.priceInput;
+      if (input?.status !== 'ready' && input?.status !== 'needs_context') return null;
+      const ready = input.status === 'ready';
+      const panel = element('section', 'price-input');
+      panel.id = 'price-input';
+      panel.dataset.status = input.status;
+      panel.tabIndex = -1;
+      panel.setAttribute('aria-labelledby', 'price-input-title');
+      const header = element('header', 'price-input-heading');
+      const title = element('h2', '', '가격 표시 검토');
+      title.id = 'price-input-title';
+      header.append(title);
+      const journey = element('section', 'price-input-stage');
+      journey.id = 'price-input-journey';
+      journey.append(element('h3', '', '가격 흐름'),
+        priceInputRecords(input.observations, true) || element('p', 'price-input-muted', '같은 상품의 첫 가격과 결제 화면을 연결하세요.'));
+      const model = element('section', 'price-input-stage');
+      model.id = 'price-input-model';
+      model.append(element('h3', '', ready ? '모델 검사 결과' : '확인할 내용'));
+      const question = input.question;
+      if (ready && Number.isFinite(input.score)) {
+        const signal = input.score >= 0.5;
+        panel.dataset.tone = signal ? 'risk' : 'clear';
+        header.append(element('span', 'price-input-status', signal ? '위험 신호' : '신호 없음'));
+        const score = element('p', 'price-input-score', '위험 점수 ' + Math.floor(input.score * 100) + '점');
+        score.id = 'price-input-score';
+        model.append(score);
+      } else if (!ready) {
+        const blockers = !question && Array.isArray(input.blockers) ? input.blockers : [];
+        if (blockers.length) {
+          const list = element('ul', 'price-input-blockers');
+          list.id = 'price-input-blockers';
+          for (const blocker of blockers) list.append(element('li', '', blocker));
+          model.append(list);
+        }
+      }
+      if (!ready && typeof question?.id === 'string' && typeof question.prompt === 'string' &&
+        Number.isInteger(result.scanVersion) && result.rootId) {
+        const fieldset = element('fieldset', 'price-input-question');
+        fieldset.id = 'price-input-question';
+        fieldset.dataset.factId = question.id;
+        fieldset.tabIndex = -1;
+        const answers = element('div', 'price-input-answers');
+        const buttons = Object.entries({yes: '예', no: '아니요', unknown: '모름'}).map(([answer, label]) => {
+          const button = panelButton(label, 'secondary', () => updatePriceInput(result, buttons,
+            { type: 'answer-price-fact', factId: question.id, answer }));
+          button.dataset.priceAnswer = answer;
+          return button;
+        });
+        answers.append(...buttons);
+        fieldset.append(element('legend', '', question.prompt), answers);
+        model.append(fieldset);
+      }
+      const signals = priceInputRecords(input.signals);
+      const confirmations = priceInputRecords(input.confirmations);
+      if (signals || confirmations) {
+        const details = element('details', 'price-input-details');
+        details.append(element('summary', '', '검사에 사용한 정보'));
+        if (signals) details.append(signals);
+        if (confirmations) details.append(confirmations);
+        model.append(details);
+      }
+      if (confirmations && Number.isInteger(result.scanVersion) && result.rootId) {
+        const reset = panelButton('답변 다시 입력', 'shipping-link price-input-reset', () =>
+          updatePriceInput(result, [reset], { type: 'reset-price-facts' }));
+        reset.id = 'price-input-reset';
+        model.append(reset);
+      }
+      panel.append(header, journey, model);
+      return panel;
+    }
+
     function showResult(result) {
+      const resumePriceInput = pendingPriceAnswer && pendingPriceAnswer.rootId === result.rootId;
+      pendingPriceAnswer = null;
+      pendingScan = null;
       if (result.rootId !== inspectedRoot) resetComparisons();
       inspectedRoot = result.rootId || null;
       const riskDesign = pattern => result.findings.some(finding => finding.status === 'risk_signal' && finding.pattern === pattern &&
@@ -1079,44 +1343,49 @@
       const risks = findings.filter(finding => finding.status === 'risk_signal');
       const unsureCount = findings.filter(finding => finding.status === 'needs_context').length;
       const clearCount = findings.filter(finding => finding.status === 'signal_absent').length;
+      const priceSection = priceInputSection(result);
+      const pricePending = result.priceInput?.status === 'needs_context';
+      const priceRisk = result.priceInput?.status === 'ready' && result.priceInput.score >= 0.5;
+      const clean = clearCount > 0 && !result.warnings?.length && !pricePending && !priceRisk;
       const summaryLine = element('div', 'summary-line');
       const frame = element('div');
       frame.append(element('p', 'eyebrow', '검사한 프레임'), element('h1', '', result.frameName));
-      const clean = clearCount > 0 && !result.warnings?.length;
-      const outcome = risks.length ? '고칠 부분 ' + risks.length + '개' : clean ? '문제 없음' : '추가 확인 필요';
+      const outcome = risks.length ? '위험 신호 ' + risks.length + '개' : priceRisk ? '가격 모델에서 위험 신호'
+        : clean ? (unsureCount ? '확인한 항목에 위험 신호 없음' : '문제 없음') : '추가 확인 필요';
       const riskBadge = element('p', 'risk-count', outcome);
-      riskBadge.dataset.risk = String(risks.length > 0);
-      summaryLine.append(frame, riskBadge);
+      riskBadge.dataset.tone = risks.length || priceRisk ? 'risk' : clean ? 'clear' : 'pending';
+      const outcomeLine = element('div', 'summary-outcome');
+      outcomeLine.append(riskBadge);
+      if (pricePending && priceSection) {
+        const jump = panelButton('가격 조건 확인', 'summary-jump', () => focusPriceInput(priceSection));
+        outcomeLine.append(jump);
+      }
+      summaryLine.append(frame, outcomeLine);
       summary.append(summaryLine);
+      if (!risks.length && clean && unsureCount) {
+        summary.append(element('p', 'summary-note', '확인이 남은 항목은 아래 검사 내역에서 볼 수 있습니다.'));
+      }
       if (result.canConfirmStart === true) {
         const confirmation = element('div', 'confirm-start');
-        const button = element('button', '', '이 프레임을 여정 시작점으로 확인');
+        const button = element('button', '', '이 프레임을 시작점으로 확인');
         button.type = 'button';
         button.addEventListener('click', () => send({ type: 'confirm-start' }));
-        confirmation.append(element('p', '', '실제 첫 화면이라면 시작점을 확인하세요.'), button);
+        confirmation.append(element('p', '', '구매 흐름의 첫 화면인지 확인해 주세요.'), button);
         summary.append(confirmation);
       }
       const section = element('section', 'findings');
       section.setAttribute('aria-label', '위험 신호');
-      risks.forEach(finding => section.append(findingCard(finding)));
-      if (!risks.length && clean) {
-        const scope = unsureCount ? '확인한 ' + clearCount + '개 항목 기준입니다. 추가 확인 항목은 아래에서 볼 수 있습니다.'
-          : '검사한 화면과 연결에서 확인된 위험 신호가 없습니다.';
-        section.append(element('p', 'empty-result', scope));
-      } else if (!risks.length && unsureCount) {
-        section.append(element('p', 'empty-result', '아래 항목의 화면과 연결을 더 확인하세요.'));
-      }
-      if (!findings.length) section.append(element('p', 'empty-result', '판단할 수 있는 항목이 없습니다.'));
+      risks.forEach((finding, index) => section.append(findingCard(finding, index === 0)));
       const other = element('details', 'other-findings');
       const statusesSummary = [
-        unsureCount ? '정보 부족 ' + unsureCount : '',
+        unsureCount ? '확인 필요 ' + unsureCount : '',
         clearCount ? '신호 없음 ' + clearCount : ''
       ].filter(Boolean);
-      other.append(element('summary', '', '다른 검사 결과' + (statusesSummary.length ? ' · ' + statusesSummary.join(' · ') : '')));
+      other.append(element('summary', '', '다른 검사 항목' + (statusesSummary.length ? ' · ' + statusesSummary.join(' · ') : '')));
       const otherFindings = findings.filter(finding => finding.status !== 'risk_signal');
-      otherFindings.forEach(finding => other.append(findingCard(finding)));
       other.hidden = !otherFindings.length;
-      other.open = !risks.length && !clean && unsureCount > 0;
+      other.open = !risks.length && !clean && !priceSection && unsureCount > 0;
+      otherFindings.forEach((finding, index) => other.append(findingCard(finding, other.open && index === 0)));
       const details = element('details', 'advanced-tools');
       advancedTools = details;
       details.open = advancedOpen;
@@ -1127,7 +1396,9 @@
       shippingHost.id = 'shipping';
       proposalHost = element('div');
       details.append(element('summary', '', '시안 만들기 및 비교'), shippingHost, proposalHost);
-      content.replaceChildren(summary, section, details, other);
+      content.replaceChildren(summary, section, ...(priceSection ? [priceSection] : []), details, other);
+      const comparisonSection = modelComparison(result.comparison);
+      if (comparisonSection) content.append(comparisonSection);
       renderComparisons();
       if (result.warnings && result.warnings.length) {
         const warnings = element('details', 'warnings');
@@ -1137,14 +1408,22 @@
         warnings.append(list);
         content.append(warnings);
       }
-      content.scrollTop = 0;
+      if (resumePriceInput && priceSection) focusPriceInput(priceSection);
+      else content.scrollTop = 0;
       content.setAttribute('aria-busy', 'false');
       notice.textContent = '';
-      announcement.textContent = result.frameName + ' 검사 완료. 위험 신호 ' + risks.length + '건.';
+      announcement.textContent = result.frameName + ' 검사 완료. ' +
+        (pricePending || priceRisk ? outcome : '위험 신호 ' + risks.length + '건.');
     }
 
-    scan.addEventListener('click', () => send({ type: 'scan' }));
-    scanSelection.addEventListener('click', () => send({ type: 'scan-selection' }));
+    function focusPriceInput(section) {
+      const target = section.querySelector?.('#price-input-question') || section;
+      target.scrollIntoView?.({ block: 'nearest' });
+      target.focus?.({ preventScroll: true });
+    }
+
+    scan.addEventListener('click', () => startScan('scan'));
+    scanSelection.addEventListener('click', () => startScan('scan-selection'));
     window.addEventListener('message', event => {
       const message = getPluginMessage(event);
       if (!message) return;
@@ -1156,10 +1435,29 @@
           else showControls(rescanAvailable, controlsBusy);
           break;
         case 'result': showResult(message); break;
-        case 'empty': resetComparisons(); showSelection(); break;
-        case 'loading': showMessage('검사 중', message.message || '프레임의 레이어와 연결을 확인하고 있습니다.', true); break;
-        case 'error': showMessage('검사를 마치지 못했습니다', message.message || '시작 프레임을 선택한 뒤 다시 검사하세요.'); break;
-        case 'notice': notice.textContent = message.message || ''; break;
+        case 'empty': pendingPriceAnswer = null; pendingScan = null; resetComparisons(); showSelection(); break;
+        case 'loading':
+          showMessage('검사 중', message.message || '프레임의 레이어와 연결을 확인하고 있습니다.',
+            { loading: true, canRescan: rescanAvailable });
+          break;
+        case 'error': {
+          pendingPriceAnswer = null;
+          pendingScan = null;
+          const retryRoot = message.retryRootId || null;
+          if (retryRoot !== inspectedRoot) resetComparisons();
+          inspectedRoot = retryRoot;
+          showMessage('검사를 마치지 못했습니다', message.message || '검사할 프레임을 선택하세요.',
+            { canRescan: Boolean(inspectedRoot) });
+          break;
+        }
+        case 'notice':
+          if (pendingPriceAnswer) {
+            pendingPriceAnswer.buttons.forEach(control => { control.disabled = false; });
+            pendingPriceAnswer = null;
+            showControls(rescanAvailable, comparisonBusy());
+          }
+          notice.textContent = message.message || '';
+          break;
         case 'shipping-loading':
         case 'shipping-comparison':
         case 'shipping-error': shippingReply(message); break;

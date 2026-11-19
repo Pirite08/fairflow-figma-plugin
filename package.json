@@ -6,6 +6,9 @@
   "scripts": {
     "build": "esbuild src/main.js --bundle --format=iife --target=es2017 --charset=utf8 --outfile=dist/code.js",
     "build:qa": "node qa/build.mjs",
+    "train:model": "node scripts/model.mjs",
+    "eval:model": "node scripts/model.mjs --evaluate",
+    "eval:public": "node scripts/eval-public.mjs",
     "pretest": "npm run build",
     "test": "node --test"
   },

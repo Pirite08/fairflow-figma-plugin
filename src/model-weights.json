@@ -1,0 +1,115 @@
+{
+  "version": 1,
+  "settings": {
+    "l2": 0.02,
+    "iterations": 4000,
+    "threshold": 0.5
+  },
+  "patterns": {
+    "paid_option_preselection": {
+      "features": [
+        "initial_checked_share",
+        "explicit_paid_selection"
+      ],
+      "means": [
+        0.4814814815,
+        0.2592592593
+      ],
+      "scales": [
+        0.4996569468,
+        0.4382281321
+      ],
+      "weights": [
+        2.638434074,
+        -0.6192754035
+      ],
+      "intercept": -0.2559343754,
+      "training": {
+        "risk": 13,
+        "absent": 14,
+        "needsContext": 13,
+        "unobserved": []
+      }
+    },
+    "misleading_visual_hierarchy": {
+      "features": [
+        "area_log_ratio",
+        "font_log_ratio",
+        "contrast_log_ratio",
+        "basic_log_contrast",
+        "opacity_difference",
+        "basic_opacity"
+      ],
+      "means": [
+        0.9825740621,
+        0.2952537348,
+        1.0366057389,
+        2.2021745264,
+        0.1288888889,
+        0.8711111111
+      ],
+      "scales": [
+        0.7438225986,
+        0.2657603363,
+        1.2346543671,
+        1.2241151599,
+        0.1780830712,
+        0.1780830712
+      ],
+      "weights": [
+        0.6578965151,
+        0.7633361735,
+        0.9390027587,
+        -0.9927465731,
+        0.7306456234,
+        -0.7306456234
+      ],
+      "intercept": -0.3989438931,
+      "training": {
+        "risk": 13,
+        "absent": 14,
+        "needsContext": 13,
+        "unobserved": []
+      }
+    },
+    "drip_pricing": {
+      "features": [
+        "price_increase_fraction",
+        "first_price_matches_total",
+        "required_fixed_fee_fraction",
+        "fee_visible_at_first_price",
+        "explicit_optional_selection"
+      ],
+      "means": [
+        0.0493084079,
+        0.5,
+        0.0656972382,
+        0.1538461538,
+        0.0384615385
+      ],
+      "scales": [
+        0.0537439854,
+        0.5,
+        0.0497928161,
+        0.3608012123,
+        0.1923076923
+      ],
+      "weights": [
+        0.98226124,
+        -1.9500125594,
+        0.5458573087,
+        -0.5020135001,
+        -1.0186322974
+      ],
+      "intercept": -0.2446318933,
+      "training": {
+        "risk": 12,
+        "absent": 14,
+        "needsContext": 13,
+        "unobserved": [
+          "ff-009"
+        ]
+      }
+    }
+  }
+}

@@ -169,8 +169,22 @@ function setTextStyle(item, layer, opacity, background) {
   item.style = style;
 }
 
+function struckRanges(layer) {
+  if (!/\d[\d,]*\s*원|(?:₩|KRW)\s*\d/i.test(layer.characters)) return [];
+  try {
+    if (typeof layer.getStyledTextSegments === 'function') {
+      return layer.getStyledTextSegments(['textDecoration'])
+        .filter(segment => segment.textDecoration === 'STRIKETHROUGH')
+        .map(segment => [segment.start, segment.end]);
+    }
+    if (layer.textDecoration === 'STRIKETHROUGH') return [[0, layer.characters.length]];
+  } catch { /* unknown style */ }
+  return [];
+}
+
 function snapshot(frame, budget, warnings) {
   const nodes = [];
+  const priceTexts = [];
   const links = [];
   const origin = frame.absoluteBoundingBox || {x: 0, y: 0};
   function walk(layer, owner, parentOpacity, parentColor, clip, depth) {
@@ -218,6 +232,16 @@ function snapshot(frame, budget, warnings) {
     if (textLayer && part) {
       const text = layer.characters.trim();
       if (text) {
+        const ranges = struckRanges(layer);
+        if (ranges.length) {
+          priceTexts.push({
+            ...normalizeLayer(layer, 'text', origin, opacity, background),
+            text: layer.characters,
+            struck_ranges: ranges,
+            ...(owner === part && ['button', 'link'].includes(part.item.role)
+              ? {control_node_id: part.item.node_id} : {})
+          });
+        }
         part.labels.push(text);
         if (text.length > part.longest) {
           part.longest = text.length;
@@ -253,6 +277,7 @@ function snapshot(frame, budget, warnings) {
   return {
     state: {
       state_id: frame.id, frame_id: frame.id, name: frame.name,
+      ...(priceTexts.length ? {price_texts: priceTexts} : {}),
       nodes: nodes.filter(part => part.labels.length || part.hasTrigger || CHOICES.has(part.item.role)).map(({item, labels}) => {
         item.text = labels.join(' ');
         const amount = priceFromText(item.text);
@@ -296,13 +321,14 @@ export async function readJourney(figmaApi, rootFrame) {
   let examined = 0;
   for (let i = 0; i < frames.length && budget.layers > 0; i++) {
     const frame = frames[i];
-    const {state, links} = snapshot(frame, budget, warnings);
+    const frameWarnings = new Set();
+    const {state, links} = snapshot(frame, budget, frameWarnings);
     states.push(state);
     for (const {nodeId, triggerNodeId, reaction} of links) {
       const actions = reaction.actions || (reaction.action ? [reaction.action] : []);
-      for (const edge of destinations(actions, warnings)) {
+      for (const edge of destinations(actions, frameWarnings)) {
         if (++examined > MAX_CONNECTIONS) {
-          warnings.add('프로토타입 연결 수 한도에 도달해 일부 경로를 생략했습니다.');
+          frameWarnings.add('프로토타입 연결 수 한도에 도달해 일부 경로를 생략했습니다.');
           break;
         }
         if (!resolved.has(edge.id)) {
@@ -312,19 +338,19 @@ export async function readJourney(figmaApi, rootFrame) {
         }
         const target = resolved.get(edge.id);
         if (!target || !SCREEN_TYPES.has(target.type) || target.visible === false) {
-          warnings.add('목적 화면이 삭제되었거나 표시 상태를 읽을 수 없는 연결이 있습니다.');
+          frameWarnings.add('목적 화면이 삭제되었거나 표시 상태를 읽을 수 없는 연결이 있습니다.');
           continue;
         }
         if (!queued.has(target.id)) {
           if (frames.length >= MAX_STATES) {
-            warnings.add('연결된 화면 수 한도에 도달해 일부 경로를 생략했습니다.');
+            frameWarnings.add('연결된 화면 수 한도에 도달해 일부 경로를 생략했습니다.');
             continue;
           }
           queued.add(target.id);
           frames.push(target);
         }
         const clicked = reaction.trigger?.type === 'ON_CLICK';
-        if (!clicked) warnings.add('클릭 이외의 트리거로 이어지는 경로는 실제 실행 조건을 확인해야 합니다.');
+        if (!clicked) frameWarnings.add('클릭 이외의 트리거로 이어지는 경로는 실제 실행 조건을 확인해야 합니다.');
         transitions.push({
           transition_id: 't' + (transitions.length + 1), from_state_id: frame.id, to_state_id: target.id,
           action: {type: clicked ? 'click' : 'other', node_id: nodeId,
@@ -333,6 +359,10 @@ export async function readJourney(figmaApi, rootFrame) {
         });
       }
       if (examined > MAX_CONNECTIONS) break;
+    }
+    if (frameWarnings.size) {
+      state.read_warnings = [...frameWarnings];
+      for (const warning of frameWarnings) warnings.add(warning);
     }
   }
   if (states.length < frames.length) warnings.add('레이어 한도에 도달해 일부 연결 화면을 읽지 못했습니다.');

@@ -184,6 +184,32 @@ test('retains competing card prices as visible data for uncertainty rather than 
   assert.deepEqual(source.nodes.filter(n => n.role === 'text').map(n => n.amount_krw), [39900, 29900]);
 });
 
+test('records struck text on the actual nested price layer and keeps the combined reader label', async () => {
+  const content = '  82,000원 62,000원';
+  const prices = caption('mixed-price', content, {
+    getStyledTextSegments(fields) {
+      assert.deepEqual(fields, ['textDecoration']);
+      return [
+        { start: 0, end: 2, textDecoration: 'NONE' },
+        { start: 2, end: 9, textDecoration: 'STRIKETHROUGH' },
+        { start: 9, end: content.length, textDecoration: 'NONE' }
+      ];
+    }
+  });
+  const card = layer('card', 'FRAME', '상품 카드', [caption('name', '울 코트'), prices], {
+    reactions: [onClick(go('checkout'))]
+  });
+  const root = screen('listing', '첫 가격', [card]);
+  const input = await readJourney(api([root, screen('checkout', '주문', [])], root.id), root);
+  const offer = input.states[0];
+  assert.deepEqual(offer.nodes.map(node => node.node_id), ['card']);
+  assert.equal(offer.nodes[0].text, '울 코트 82,000원 62,000원');
+  assert.deepEqual(offer.price_texts.map(({node_id, control_node_id, text, struck_ranges}) =>
+    ({node_id, control_node_id, text, struck_ranges})), [
+    {node_id: 'mixed-price', control_node_id: 'card', text: content, struck_ranges: [[2, 9]]}
+  ]);
+});
+
 test('reads a sibling button background when scanning a weak choice and its repair', async () => {
   const backdrop = layer('back', 'RECTANGLE', '버튼 배경', [], {
     absoluteBoundingBox: box(10, 10, 200, 48), fills: fill(0, 0, 0), cornerRadius: 6

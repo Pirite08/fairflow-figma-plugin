@@ -1,0 +1,731 @@
+{
+  "synthetic": true,
+  "training": {
+    "samples": 120,
+    "groups": 21,
+    "byPattern": {
+      "paid_option_preselection": {
+        "risk": 13,
+        "absent": 14,
+        "needsContext": 13,
+        "unobserved": []
+      },
+      "misleading_visual_hierarchy": {
+        "risk": 13,
+        "absent": 14,
+        "needsContext": 13,
+        "unobserved": []
+      },
+      "drip_pricing": {
+        "risk": 12,
+        "absent": 14,
+        "needsContext": 13,
+        "unobserved": [
+          "ff-009"
+        ]
+      }
+    }
+  },
+  "overall": {
+    "samples": 54,
+    "groups": 9,
+    "disagreements": 6,
+    "rules": {
+      "correct": 48,
+      "accuracy": 0.8888888889,
+      "riskPrecision": 1,
+      "riskRecall": 0.8333333333,
+      "riskF1": 0.9090909091,
+      "confusion": {
+        "risk_signal": {
+          "risk_signal": 15,
+          "signal_absent": 0,
+          "needs_context": 3
+        },
+        "signal_absent": {
+          "risk_signal": 0,
+          "signal_absent": 15,
+          "needs_context": 3
+        },
+        "needs_context": {
+          "risk_signal": 0,
+          "signal_absent": 0,
+          "needs_context": 18
+        }
+      }
+    },
+    "model": {
+      "correct": 54,
+      "accuracy": 1,
+      "riskPrecision": 1,
+      "riskRecall": 1,
+      "riskF1": 1,
+      "confusion": {
+        "risk_signal": {
+          "risk_signal": 18,
+          "signal_absent": 0,
+          "needs_context": 0
+        },
+        "signal_absent": {
+          "risk_signal": 0,
+          "signal_absent": 18,
+          "needs_context": 0
+        },
+        "needs_context": {
+          "risk_signal": 0,
+          "signal_absent": 0,
+          "needs_context": 18
+        }
+      }
+    }
+  },
+  "byPattern": {
+    "paid_option_preselection": {
+      "samples": 18,
+      "groups": 3,
+      "disagreements": 0,
+      "rules": {
+        "correct": 18,
+        "accuracy": 1,
+        "riskPrecision": 1,
+        "riskRecall": 1,
+        "riskF1": 1,
+        "confusion": {
+          "risk_signal": {
+            "risk_signal": 6,
+            "signal_absent": 0,
+            "needs_context": 0
+          },
+          "signal_absent": {
+            "risk_signal": 0,
+            "signal_absent": 6,
+            "needs_context": 0
+          },
+          "needs_context": {
+            "risk_signal": 0,
+            "signal_absent": 0,
+            "needs_context": 6
+          }
+        }
+      },
+      "model": {
+        "correct": 18,
+        "accuracy": 1,
+        "riskPrecision": 1,
+        "riskRecall": 1,
+        "riskF1": 1,
+        "confusion": {
+          "risk_signal": {
+            "risk_signal": 6,
+            "signal_absent": 0,
+            "needs_context": 0
+          },
+          "signal_absent": {
+            "risk_signal": 0,
+            "signal_absent": 6,
+            "needs_context": 0
+          },
+          "needs_context": {
+            "risk_signal": 0,
+            "signal_absent": 0,
+            "needs_context": 6
+          }
+        }
+      }
+    },
+    "misleading_visual_hierarchy": {
+      "samples": 18,
+      "groups": 3,
+      "disagreements": 3,
+      "rules": {
+        "correct": 15,
+        "accuracy": 0.8333333333,
+        "riskPrecision": 1,
+        "riskRecall": 0.5,
+        "riskF1": 0.6666666667,
+        "confusion": {
+          "risk_signal": {
+            "risk_signal": 3,
+            "signal_absent": 0,
+            "needs_context": 3
+          },
+          "signal_absent": {
+            "risk_signal": 0,
+            "signal_absent": 6,
+            "needs_context": 0
+          },
+          "needs_context": {
+            "risk_signal": 0,
+            "signal_absent": 0,
+            "needs_context": 6
+          }
+        }
+      },
+      "model": {
+        "correct": 18,
+        "accuracy": 1,
+        "riskPrecision": 1,
+        "riskRecall": 1,
+        "riskF1": 1,
+        "confusion": {
+          "risk_signal": {
+            "risk_signal": 6,
+            "signal_absent": 0,
+            "needs_context": 0
+          },
+          "signal_absent": {
+            "risk_signal": 0,
+            "signal_absent": 6,
+            "needs_context": 0
+          },
+          "needs_context": {
+            "risk_signal": 0,
+            "signal_absent": 0,
+            "needs_context": 6
+          }
+        }
+      }
+    },
+    "drip_pricing": {
+      "samples": 18,
+      "groups": 3,
+      "disagreements": 3,
+      "rules": {
+        "correct": 15,
+        "accuracy": 0.8333333333,
+        "riskPrecision": 1,
+        "riskRecall": 1,
+        "riskF1": 1,
+        "confusion": {
+          "risk_signal": {
+            "risk_signal": 6,
+            "signal_absent": 0,
+            "needs_context": 0
+          },
+          "signal_absent": {
+            "risk_signal": 0,
+            "signal_absent": 3,
+            "needs_context": 3
+          },
+          "needs_context": {
+            "risk_signal": 0,
+            "signal_absent": 0,
+            "needs_context": 6
+          }
+        }
+      },
+      "model": {
+        "correct": 18,
+        "accuracy": 1,
+        "riskPrecision": 1,
+        "riskRecall": 1,
+        "riskF1": 1,
+        "confusion": {
+          "risk_signal": {
+            "risk_signal": 6,
+            "signal_absent": 0,
+            "needs_context": 0
+          },
+          "signal_absent": {
+            "risk_signal": 0,
+            "signal_absent": 6,
+            "needs_context": 0
+          },
+          "needs_context": {
+            "risk_signal": 0,
+            "signal_absent": 0,
+            "needs_context": 6
+          }
+        }
+      }
+    }
+  },
+  "examples": [
+    {
+      "id": "synthetic-bakery-checked",
+      "group": "synthetic-bakery",
+      "expected": "risk_signal",
+      "pattern": "paid_option_preselection",
+      "ruleStatus": "risk_signal",
+      "modelStatus": "risk_signal",
+      "score": 0.9452393513
+    },
+    {
+      "id": "synthetic-bakery-automatic",
+      "group": "synthetic-bakery",
+      "expected": "risk_signal",
+      "pattern": "paid_option_preselection",
+      "ruleStatus": "risk_signal",
+      "modelStatus": "risk_signal",
+      "score": 0.9452393513
+    },
+    {
+      "id": "synthetic-bakery-unchecked",
+      "group": "synthetic-bakery",
+      "expected": "signal_absent",
+      "pattern": "paid_option_preselection",
+      "ruleStatus": "signal_absent",
+      "modelStatus": "signal_absent",
+      "score": 0.0807630179
+    },
+    {
+      "id": "synthetic-bakery-explicit",
+      "group": "synthetic-bakery",
+      "expected": "signal_absent",
+      "pattern": "paid_option_preselection",
+      "ruleStatus": "signal_absent",
+      "modelStatus": "signal_absent",
+      "score": 0.0209353297
+    },
+    {
+      "id": "synthetic-bakery-redacted",
+      "group": "synthetic-bakery",
+      "expected": "needs_context",
+      "pattern": "paid_option_preselection",
+      "ruleStatus": "needs_context",
+      "modelStatus": "needs_context",
+      "score": null
+    },
+    {
+      "id": "synthetic-bakery-midstream",
+      "group": "synthetic-bakery",
+      "expected": "needs_context",
+      "pattern": "paid_option_preselection",
+      "ruleStatus": "needs_context",
+      "modelStatus": "needs_context",
+      "score": null
+    },
+    {
+      "id": "synthetic-photo-checked",
+      "group": "synthetic-photo",
+      "expected": "risk_signal",
+      "pattern": "paid_option_preselection",
+      "ruleStatus": "risk_signal",
+      "modelStatus": "risk_signal",
+      "score": 0.9452393513
+    },
+    {
+      "id": "synthetic-photo-automatic",
+      "group": "synthetic-photo",
+      "expected": "risk_signal",
+      "pattern": "paid_option_preselection",
+      "ruleStatus": "risk_signal",
+      "modelStatus": "risk_signal",
+      "score": 0.9452393513
+    },
+    {
+      "id": "synthetic-photo-unchecked",
+      "group": "synthetic-photo",
+      "expected": "signal_absent",
+      "pattern": "paid_option_preselection",
+      "ruleStatus": "signal_absent",
+      "modelStatus": "signal_absent",
+      "score": 0.0807630179
+    },
+    {
+      "id": "synthetic-photo-explicit",
+      "group": "synthetic-photo",
+      "expected": "signal_absent",
+      "pattern": "paid_option_preselection",
+      "ruleStatus": "signal_absent",
+      "modelStatus": "signal_absent",
+      "score": 0.0209353297
+    },
+    {
+      "id": "synthetic-photo-redacted",
+      "group": "synthetic-photo",
+      "expected": "needs_context",
+      "pattern": "paid_option_preselection",
+      "ruleStatus": "needs_context",
+      "modelStatus": "needs_context",
+      "score": null
+    },
+    {
+      "id": "synthetic-photo-midstream",
+      "group": "synthetic-photo",
+      "expected": "needs_context",
+      "pattern": "paid_option_preselection",
+      "ruleStatus": "needs_context",
+      "modelStatus": "needs_context",
+      "score": null
+    },
+    {
+      "id": "synthetic-repair-checked",
+      "group": "synthetic-repair",
+      "expected": "risk_signal",
+      "pattern": "paid_option_preselection",
+      "ruleStatus": "risk_signal",
+      "modelStatus": "risk_signal",
+      "score": 0.9452393513
+    },
+    {
+      "id": "synthetic-repair-automatic",
+      "group": "synthetic-repair",
+      "expected": "risk_signal",
+      "pattern": "paid_option_preselection",
+      "ruleStatus": "risk_signal",
+      "modelStatus": "risk_signal",
+      "score": 0.9452393513
+    },
+    {
+      "id": "synthetic-repair-unchecked",
+      "group": "synthetic-repair",
+      "expected": "signal_absent",
+      "pattern": "paid_option_preselection",
+      "ruleStatus": "signal_absent",
+      "modelStatus": "signal_absent",
+      "score": 0.0807630179
+    },
+    {
+      "id": "synthetic-repair-explicit",
+      "group": "synthetic-repair",
+      "expected": "signal_absent",
+      "pattern": "paid_option_preselection",
+      "ruleStatus": "signal_absent",
+      "modelStatus": "signal_absent",
+      "score": 0.0209353297
+    },
+    {
+      "id": "synthetic-repair-redacted",
+      "group": "synthetic-repair",
+      "expected": "needs_context",
+      "pattern": "paid_option_preselection",
+      "ruleStatus": "needs_context",
+      "modelStatus": "needs_context",
+      "score": null
+    },
+    {
+      "id": "synthetic-repair-midstream",
+      "group": "synthetic-repair",
+      "expected": "needs_context",
+      "pattern": "paid_option_preselection",
+      "ruleStatus": "needs_context",
+      "modelStatus": "needs_context",
+      "score": null
+    },
+    {
+      "id": "synthetic-music-faint",
+      "group": "synthetic-music",
+      "expected": "risk_signal",
+      "pattern": "misleading_visual_hierarchy",
+      "ruleStatus": "risk_signal",
+      "modelStatus": "risk_signal",
+      "score": 0.9874177087
+    },
+    {
+      "id": "synthetic-music-subdued",
+      "group": "synthetic-music",
+      "expected": "risk_signal",
+      "pattern": "misleading_visual_hierarchy",
+      "ruleStatus": "needs_context",
+      "modelStatus": "risk_signal",
+      "score": 0.9594976972
+    },
+    {
+      "id": "synthetic-music-comparable",
+      "group": "synthetic-music",
+      "expected": "signal_absent",
+      "pattern": "misleading_visual_hierarchy",
+      "ruleStatus": "signal_absent",
+      "modelStatus": "signal_absent",
+      "score": 0.0032922067
+    },
+    {
+      "id": "synthetic-music-secondary",
+      "group": "synthetic-music",
+      "expected": "signal_absent",
+      "pattern": "misleading_visual_hierarchy",
+      "ruleStatus": "signal_absent",
+      "modelStatus": "signal_absent",
+      "score": 0.0252666941
+    },
+    {
+      "id": "synthetic-music-unlinked",
+      "group": "synthetic-music",
+      "expected": "needs_context",
+      "pattern": "misleading_visual_hierarchy",
+      "ruleStatus": "needs_context",
+      "modelStatus": "needs_context",
+      "score": null
+    },
+    {
+      "id": "synthetic-music-unmeasured",
+      "group": "synthetic-music",
+      "expected": "needs_context",
+      "pattern": "misleading_visual_hierarchy",
+      "ruleStatus": "needs_context",
+      "modelStatus": "needs_context",
+      "score": null
+    },
+    {
+      "id": "synthetic-class-faint",
+      "group": "synthetic-class",
+      "expected": "risk_signal",
+      "pattern": "misleading_visual_hierarchy",
+      "ruleStatus": "risk_signal",
+      "modelStatus": "risk_signal",
+      "score": 0.98498124
+    },
+    {
+      "id": "synthetic-class-subdued",
+      "group": "synthetic-class",
+      "expected": "risk_signal",
+      "pattern": "misleading_visual_hierarchy",
+      "ruleStatus": "needs_context",
+      "modelStatus": "risk_signal",
+      "score": 0.9713022195
+    },
+    {
+      "id": "synthetic-class-comparable",
+      "group": "synthetic-class",
+      "expected": "signal_absent",
+      "pattern": "misleading_visual_hierarchy",
+      "ruleStatus": "signal_absent",
+      "modelStatus": "signal_absent",
+      "score": 0.0053097784
+    },
+    {
+      "id": "synthetic-class-secondary",
+      "group": "synthetic-class",
+      "expected": "signal_absent",
+      "pattern": "misleading_visual_hierarchy",
+      "ruleStatus": "signal_absent",
+      "modelStatus": "signal_absent",
+      "score": 0.0504575243
+    },
+    {
+      "id": "synthetic-class-unlinked",
+      "group": "synthetic-class",
+      "expected": "needs_context",
+      "pattern": "misleading_visual_hierarchy",
+      "ruleStatus": "needs_context",
+      "modelStatus": "needs_context",
+      "score": null
+    },
+    {
+      "id": "synthetic-class-unmeasured",
+      "group": "synthetic-class",
+      "expected": "needs_context",
+      "pattern": "misleading_visual_hierarchy",
+      "ruleStatus": "needs_context",
+      "modelStatus": "needs_context",
+      "score": null
+    },
+    {
+      "id": "synthetic-rental-gear-faint",
+      "group": "synthetic-rental-gear",
+      "expected": "risk_signal",
+      "pattern": "misleading_visual_hierarchy",
+      "ruleStatus": "risk_signal",
+      "modelStatus": "risk_signal",
+      "score": 0.9215734703
+    },
+    {
+      "id": "synthetic-rental-gear-subdued",
+      "group": "synthetic-rental-gear",
+      "expected": "risk_signal",
+      "pattern": "misleading_visual_hierarchy",
+      "ruleStatus": "needs_context",
+      "modelStatus": "risk_signal",
+      "score": 0.9460392858
+    },
+    {
+      "id": "synthetic-rental-gear-comparable",
+      "group": "synthetic-rental-gear",
+      "expected": "signal_absent",
+      "pattern": "misleading_visual_hierarchy",
+      "ruleStatus": "signal_absent",
+      "modelStatus": "signal_absent",
+      "score": 0.0027497744
+    },
+    {
+      "id": "synthetic-rental-gear-secondary",
+      "group": "synthetic-rental-gear",
+      "expected": "signal_absent",
+      "pattern": "misleading_visual_hierarchy",
+      "ruleStatus": "signal_absent",
+      "modelStatus": "signal_absent",
+      "score": 0.0190194914
+    },
+    {
+      "id": "synthetic-rental-gear-unlinked",
+      "group": "synthetic-rental-gear",
+      "expected": "needs_context",
+      "pattern": "misleading_visual_hierarchy",
+      "ruleStatus": "needs_context",
+      "modelStatus": "needs_context",
+      "score": null
+    },
+    {
+      "id": "synthetic-rental-gear-unmeasured",
+      "group": "synthetic-rental-gear",
+      "expected": "needs_context",
+      "pattern": "misleading_visual_hierarchy",
+      "ruleStatus": "needs_context",
+      "modelStatus": "needs_context",
+      "score": null
+    },
+    {
+      "id": "synthetic-exhibition-checkout-only",
+      "group": "synthetic-exhibition",
+      "expected": "risk_signal",
+      "pattern": "drip_pricing",
+      "ruleStatus": "risk_signal",
+      "modelStatus": "risk_signal",
+      "score": 0.9698621721
+    },
+    {
+      "id": "synthetic-exhibition-later-details",
+      "group": "synthetic-exhibition",
+      "expected": "risk_signal",
+      "pattern": "drip_pricing",
+      "ruleStatus": "risk_signal",
+      "modelStatus": "risk_signal",
+      "score": 0.9698621721
+    },
+    {
+      "id": "synthetic-exhibition-included",
+      "group": "synthetic-exhibition",
+      "expected": "signal_absent",
+      "pattern": "drip_pricing",
+      "ruleStatus": "signal_absent",
+      "modelStatus": "signal_absent",
+      "score": 0.0246922857
+    },
+    {
+      "id": "synthetic-exhibition-optional",
+      "group": "synthetic-exhibition",
+      "expected": "signal_absent",
+      "pattern": "drip_pricing",
+      "ruleStatus": "needs_context",
+      "modelStatus": "signal_absent",
+      "score": 0.0323497934
+    },
+    {
+      "id": "synthetic-exhibition-unconfirmed",
+      "group": "synthetic-exhibition",
+      "expected": "needs_context",
+      "pattern": "drip_pricing",
+      "ruleStatus": "needs_context",
+      "modelStatus": "needs_context",
+      "score": null
+    },
+    {
+      "id": "synthetic-exhibition-ambiguous",
+      "group": "synthetic-exhibition",
+      "expected": "needs_context",
+      "pattern": "drip_pricing",
+      "ruleStatus": "needs_context",
+      "modelStatus": "needs_context",
+      "score": null
+    },
+    {
+      "id": "synthetic-interior-checkout-only",
+      "group": "synthetic-interior",
+      "expected": "risk_signal",
+      "pattern": "drip_pricing",
+      "ruleStatus": "risk_signal",
+      "modelStatus": "risk_signal",
+      "score": 0.9556970382
+    },
+    {
+      "id": "synthetic-interior-later-details",
+      "group": "synthetic-interior",
+      "expected": "risk_signal",
+      "pattern": "drip_pricing",
+      "ruleStatus": "risk_signal",
+      "modelStatus": "risk_signal",
+      "score": 0.9556970382
+    },
+    {
+      "id": "synthetic-interior-included",
+      "group": "synthetic-interior",
+      "expected": "signal_absent",
+      "pattern": "drip_pricing",
+      "ruleStatus": "signal_absent",
+      "modelStatus": "signal_absent",
+      "score": 0.0805541666
+    },
+    {
+      "id": "synthetic-interior-optional",
+      "group": "synthetic-interior",
+      "expected": "signal_absent",
+      "pattern": "drip_pricing",
+      "ruleStatus": "needs_context",
+      "modelStatus": "signal_absent",
+      "score": 0.0323497934
+    },
+    {
+      "id": "synthetic-interior-unconfirmed",
+      "group": "synthetic-interior",
+      "expected": "needs_context",
+      "pattern": "drip_pricing",
+      "ruleStatus": "needs_context",
+      "modelStatus": "needs_context",
+      "score": null
+    },
+    {
+      "id": "synthetic-interior-ambiguous",
+      "group": "synthetic-interior",
+      "expected": "needs_context",
+      "pattern": "drip_pricing",
+      "ruleStatus": "needs_context",
+      "modelStatus": "needs_context",
+      "score": null
+    },
+    {
+      "id": "synthetic-workshop-checkout-only",
+      "group": "synthetic-workshop",
+      "expected": "risk_signal",
+      "pattern": "drip_pricing",
+      "ruleStatus": "risk_signal",
+      "modelStatus": "risk_signal",
+      "score": 0.9281621103
+    },
+    {
+      "id": "synthetic-workshop-later-details",
+      "group": "synthetic-workshop",
+      "expected": "risk_signal",
+      "pattern": "drip_pricing",
+      "ruleStatus": "risk_signal",
+      "modelStatus": "risk_signal",
+      "score": 0.9281621103
+    },
+    {
+      "id": "synthetic-workshop-included",
+      "group": "synthetic-workshop",
+      "expected": "signal_absent",
+      "pattern": "drip_pricing",
+      "ruleStatus": "signal_absent",
+      "modelStatus": "signal_absent",
+      "score": 0.0176638717
+    },
+    {
+      "id": "synthetic-workshop-optional",
+      "group": "synthetic-workshop",
+      "expected": "signal_absent",
+      "pattern": "drip_pricing",
+      "ruleStatus": "needs_context",
+      "modelStatus": "signal_absent",
+      "score": 0.0323497934
+    },
+    {
+      "id": "synthetic-workshop-unconfirmed",
+      "group": "synthetic-workshop",
+      "expected": "needs_context",
+      "pattern": "drip_pricing",
+      "ruleStatus": "needs_context",
+      "modelStatus": "needs_context",
+      "score": null
+    },
+    {
+      "id": "synthetic-workshop-ambiguous",
+      "group": "synthetic-workshop",
+      "expected": "needs_context",
+      "pattern": "drip_pricing",
+      "ruleStatus": "needs_context",
+      "modelStatus": "needs_context",
+      "score": null
+    }
+  ]
+}
