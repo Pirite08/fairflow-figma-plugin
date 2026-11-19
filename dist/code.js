@@ -92,11 +92,12 @@
     const value = Number(amounts[0].replace(/\D/g, ""));
     return Number.isSafeInteger(value) ? value : void 0;
   }
+  var visiblePaint = (paint) => paint.visible !== false && paint.opacity !== 0;
   function solidColor(paints) {
     var _a;
     if (!Array.isArray(paints)) return void 0;
-    const visible = paints.filter((p) => p.visible !== false && p.opacity !== 0);
-    if (visible.length !== 1 || visible[0].type !== "SOLID" || ((_a = visible[0].opacity) != null ? _a : 1) !== 1) return void 0;
+    const visible = paints.filter(visiblePaint);
+    if (visible.length !== 1 || visible[0].type !== "SOLID" || ((_a = visible[0].opacity) != null ? _a : 1) !== 1 || visible[0].blendMode && visible[0].blendMode !== "NORMAL") return void 0;
     return "#" + ["r", "g", "b"].map((key) => {
       const channel = Math.round(visible[0].color[key] * 255);
       return channel.toString(16).padStart(2, "0").toUpperCase();
@@ -104,6 +105,43 @@
   }
   function intersects(rect, clip) {
     return !rect || !clip || rect.x < clip.x + clip.width && rect.x + rect.width > clip.x && rect.y < clip.y + clip.height && rect.y + rect.height > clip.y;
+  }
+  function rectangleBackdrop(shape, label) {
+    var _a, _b, _c, _d;
+    const rect = shape.absoluteBoundingBox;
+    if (shape.type !== "RECTANGLE" || !rect || ((_a = shape.opacity) != null ? _a : 1) !== 1 || ((_b = shape.effects) == null ? void 0 : _b.some((effect) => effect.visible !== false)) || ((_c = shape.strokes) == null ? void 0 : _c.some(visiblePaint)) || shape.blendMode && !["NORMAL", "PASS_THROUGH"].includes(shape.blendMode)) return void 0;
+    const transform = shape.absoluteTransform;
+    if (transform && (transform[0][1] !== 0 || transform[1][0] !== 0)) return void 0;
+    const insetX = Math.min(label.x - rect.x, rect.x + rect.width - label.x - label.width);
+    const insetY = Math.min(label.y - rect.y, rect.y + rect.height - label.y - label.height);
+    const radius = (_d = shape.cornerRadius) != null ? _d : 0;
+    if (insetX < 0 || insetY < 0 || typeof radius !== "number" || radius > 0 && (shape.cornerSmoothing || Math.max(insetX, insetY) < radius)) return void 0;
+    return solidColor(shape.fills);
+  }
+  function siblingBackdrop(label, inherited) {
+    var _a, _b;
+    const parent = label.parent;
+    const siblings = parent == null ? void 0 : parent.children;
+    if (!siblings || siblings.length < 2) return inherited;
+    const rect = label.absoluteBoundingBox;
+    if (!rect || siblings.length > 64) return void 0;
+    const reversed = ["HORIZONTAL", "VERTICAL"].includes(parent.layoutMode) && parent.itemReverseZIndex;
+    let behind = true;
+    let color = inherited;
+    for (let i = 0; i < siblings.length; i++) {
+      const sibling = siblings[reversed ? siblings.length - 1 - i : i];
+      if (sibling.id === label.id) {
+        behind = false;
+        continue;
+      }
+      if (sibling.visible === false || sibling.opacity === 0) continue;
+      if (sibling.isMask) return void 0;
+      if (!intersects(rect, sibling.absoluteRenderBounds || sibling.absoluteBoundingBox)) continue;
+      if (sibling.type === "RECTANGLE" && Array.isArray(sibling.fills) && !sibling.fills.some(visiblePaint) && !((_a = sibling.strokes) == null ? void 0 : _a.some(visiblePaint)) && !((_b = sibling.effects) == null ? void 0 : _b.some((effect) => effect.visible !== false))) continue;
+      if (!behind) return void 0;
+      color = rectangleBackdrop(sibling, rect);
+    }
+    return color;
   }
   function clipRect(rect, inherited) {
     if (!rect || !inherited) return rect || inherited;
@@ -154,10 +192,11 @@
       const textLayer = layer.type === "TEXT";
       const paints = layer.fills;
       let background = parentColor;
-      const hasPaint = Array.isArray(paints) ? paints.some((p) => p.visible !== false && p.opacity !== 0) : Boolean(paints);
+      const hasPaint = Array.isArray(paints) ? paints.some(visiblePaint) : Boolean(paints);
       if (!textLayer && hasPaint) {
         background = solidColor(paints);
       }
+      if (textLayer) background = siblingBackdrop(layer, background);
       const reactions = layer.reactions || [];
       const isRoot = layer.id === frame.id;
       const ownRole = namedRole(layer);
@@ -534,7 +573,8 @@
   function offerPrice(state) {
     const controls = new Map(state.nodes.filter(button).map((n) => [n.node_id, n]));
     const isCard = (n) => /[가-힣a-z]/i.test(n.text.replace(/₩?\s*[\d,]+\s*원?/g, "")) && !/결제|구매하기|장바구니|담기|선택|추가|옵션|동의|계속|신청|가입|주문하기/.test(n.text);
-    const isPrice = (n) => money(n) !== null && !totalText.test(n.text) && !feeText.test(n.text) && !/할인액|적립|쿠폰|정가/.test(n.text);
+    const includesFee = /(?:^|\s)총(?:액|\s*가격)?\s*(?:₩\s*)?[\d,]+\s*원\s*[(（·,]?\s*(?:필수\s*)?(?:배송비|수수료|발권비)\s*포함\s*[)）.]?\s*$/;
+    const isPrice = (n) => money(n) !== null && !totalText.test(n.text) && (!feeText.test(n.text) || includesFee.test(n.text)) && !/할인액|적립|쿠폰|정가/.test(n.text);
     const represented = /* @__PURE__ */ new Set(), options = [];
     for (const n of state.nodes) {
       if (n.role !== "text" || !isPrice(n)) continue;

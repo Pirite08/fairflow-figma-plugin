@@ -79,10 +79,13 @@ function priceFromText(text) {
 }
 
 // Transparent/mixed/gradient paints need a rendered image for a contrast calculation.
+const visiblePaint = paint => paint.visible !== false && paint.opacity !== 0;
+
 function solidColor(paints) {
   if (!Array.isArray(paints)) return undefined;
-  const visible = paints.filter(p => p.visible !== false && p.opacity !== 0);
-  if (visible.length !== 1 || visible[0].type !== 'SOLID' || (visible[0].opacity ?? 1) !== 1) return undefined;
+  const visible = paints.filter(visiblePaint);
+  if (visible.length !== 1 || visible[0].type !== 'SOLID' || (visible[0].opacity ?? 1) !== 1 ||
+      (visible[0].blendMode && visible[0].blendMode !== 'NORMAL')) return undefined;
   return '#' + ['r', 'g', 'b'].map(key => {
     const channel = Math.round(visible[0].color[key] * 255);
     return channel.toString(16).padStart(2, '0').toUpperCase();
@@ -92,6 +95,46 @@ function solidColor(paints) {
 function intersects(rect, clip) {
   return !rect || !clip || (rect.x < clip.x + clip.width && rect.x + rect.width > clip.x &&
     rect.y < clip.y + clip.height && rect.y + rect.height > clip.y);
+}
+
+function rectangleBackdrop(shape, label) {
+  const rect = shape.absoluteBoundingBox;
+  if (shape.type !== 'RECTANGLE' || !rect || (shape.opacity ?? 1) !== 1 ||
+      shape.effects?.some(effect => effect.visible !== false) || shape.strokes?.some(visiblePaint) ||
+      (shape.blendMode && !['NORMAL', 'PASS_THROUGH'].includes(shape.blendMode))) return undefined;
+  const transform = shape.absoluteTransform;
+  if (transform && (transform[0][1] !== 0 || transform[1][0] !== 0)) return undefined;
+  const insetX = Math.min(label.x - rect.x, rect.x + rect.width - label.x - label.width);
+  const insetY = Math.min(label.y - rect.y, rect.y + rect.height - label.y - label.height);
+  const radius = shape.cornerRadius ?? 0;
+  if (insetX < 0 || insetY < 0 || typeof radius !== 'number' ||
+      (radius > 0 && (shape.cornerSmoothing || Math.max(insetX, insetY) < radius))) return undefined;
+  return solidColor(shape.fills);
+}
+
+// Buttons often paint their background with a separate rectangle below the label.
+// Only use a color when it covers the entire text and nothing paints over it.
+function siblingBackdrop(label, inherited) {
+  const parent = label.parent;
+  const siblings = parent?.children;
+  if (!siblings || siblings.length < 2) return inherited;
+  const rect = label.absoluteBoundingBox;
+  if (!rect || siblings.length > 64) return undefined;
+  const reversed = ['HORIZONTAL', 'VERTICAL'].includes(parent.layoutMode) && parent.itemReverseZIndex;
+  let behind = true;
+  let color = inherited;
+  for (let i = 0; i < siblings.length; i++) {
+    const sibling = siblings[reversed ? siblings.length - 1 - i : i];
+    if (sibling.id === label.id) { behind = false; continue; }
+    if (sibling.visible === false || sibling.opacity === 0) continue;
+    if (sibling.isMask) return undefined;
+    if (!intersects(rect, sibling.absoluteRenderBounds || sibling.absoluteBoundingBox)) continue;
+    if (sibling.type === 'RECTANGLE' && Array.isArray(sibling.fills) && !sibling.fills.some(visiblePaint) &&
+        !sibling.strokes?.some(visiblePaint) && !sibling.effects?.some(effect => effect.visible !== false)) continue;
+    if (!behind) return undefined;
+    color = rectangleBackdrop(sibling, rect);
+  }
+  return color;
 }
 
 function clipRect(rect, inherited) {
@@ -140,10 +183,11 @@ function snapshot(frame, budget, warnings) {
     const textLayer = layer.type === 'TEXT';
     const paints = layer.fills;
     let background = parentColor;
-    const hasPaint = Array.isArray(paints) ? paints.some(p => p.visible !== false && p.opacity !== 0) : Boolean(paints);
+    const hasPaint = Array.isArray(paints) ? paints.some(visiblePaint) : Boolean(paints);
     if (!textLayer && hasPaint) {
       background = solidColor(paints);
     }
+    if (textLayer) background = siblingBackdrop(layer, background);
     const reactions = layer.reactions || [];
     const isRoot = layer.id === frame.id;
     const ownRole = namedRole(layer);

@@ -41,13 +41,30 @@ function runPlugin(screens, registeredStart = true) {
   }
   for (const screen of screens) indexNode(screen, page);
   const messages = [];
+  const zoomedLayers = [];
   const api = {
     currentPage: page, getNodeByIdAsync: async id => index.get(id) || null,
-    ui: { postMessage: msg => messages.push(msg) }, viewport: {scrollAndZoomIntoView() {}},
+    ui: { postMessage: msg => messages.push(msg) },
+    viewport: {scrollAndZoomIntoView(nodes) { zoomedLayers.push(...nodes.map(n => n.id)); }},
     showUI(html) { assert.ok(html.includes("FairFlow")); }, on() {}
   };
   runInNewContext(asset(manifest.main), { figma: api, __html__: asset(manifest.ui), console });
-  return { api, messages, send: msg => api.ui.onmessage(msg) };
+  return { api, messages, zoomedLayers, send: msg => api.ui.onmessage(msg) };
+}
+
+async function focusAndRecheck(host, finding, id, edit) {
+  const root = host.api.currentPage.selection[0];
+  const evidence = finding.evidence.find(e => e.node_id === id);
+  assert.ok(evidence?.label, "expected a labelled evidence button");
+  await host.send({type: "focus", ...evidence});
+  assert.equal(host.api.currentPage.selection[0].id, id);
+  assert.equal(host.zoomedLayers.at(-1), id);
+  edit();
+  await host.send({type: "scan"});
+  const updated = host.messages.at(-1);
+  assert.equal(updated.frameName, root.name);
+  assert.equal(host.api.currentPage.selection[0].id, id);
+  assert.equal(updated.findings.find(f => f.pattern === finding.pattern).status, "signal_absent");
 }
 
 test("manifest entry follows a price journey, focuses its layer and sees an edited price", async () => {
@@ -66,12 +83,7 @@ test("manifest entry follows a price journey, focuses its layer and sees an edit
   assert.equal(host.messages.at(-1).stateCount, 2);
   const evidence = priceFinding().evidence.find(e => e.node_id === "charge");
   assert.match(evidence.label, /3,000원/);
-  await host.send({type: "focus", ...evidence});
-  assert.equal(host.api.currentPage.selection[0].id, "charge");
-  price.characters = "32,900원";
-  await host.send({type: "scan"});
-  assert.equal(host.messages.at(-1).frameName, "상품");
-  assert.equal(priceFinding().status, "signal_absent");
+  await focusAndRecheck(host, priceFinding(), "charge", () => { price.characters = "32,900원"; });
 });
 
 test("manifest entry reads paid radio state from a component instance", async () => {
@@ -84,7 +96,9 @@ test("manifest entry reads paid radio state from a component instance", async ()
   await host.send({type: "ready"});
   const finding = host.messages.at(-1).findings.find(f => f.pattern === "paid_option_preselection");
   assert.equal(finding.status, "risk_signal");
-  assert.ok(finding.evidence.some(e => e.node_id === "express"));
+  await focusAndRecheck(host, finding, "express", () => {
+    radio.componentProperties["Selected#8:1"].value = false;
+  });
 });
 
 test("manifest entry compares two working subscription choices and returns both layer IDs", async () => {
@@ -105,4 +119,9 @@ test("manifest entry compares two working subscription choices and returns both 
   const finding = result.findings.find(f => f.pattern === "misleading_visual_hierarchy");
   assert.equal(finding.status, "risk_signal");
   assert.deepEqual(Array.from(finding.evidence, e => e.node_id).sort(), ["base", "extra"]);
+  await focusAndRecheck(host, finding, "base", () => {
+    base.absoluteBoundingBox = {x: 0, y: 70, width: 350, height: 52};
+    base.children[0].fontSize = 18;
+    base.children[0].fills = solid(0.1, 0.18, 0.16);
+  });
 });

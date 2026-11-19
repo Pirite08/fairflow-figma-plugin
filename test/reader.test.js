@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readJourney } from '../src/reader.js';
+import { analyzeJourney } from '../src/analyze.js';
 
 const box = (x, y, width, height) => ({x, y, width, height});
 const fill = (r, g, b) => [{type: 'SOLID', color: {r, g, b}}];
@@ -181,4 +182,54 @@ test('retains competing card prices as visible data for uncertainty rather than 
   const source = input.states[0];
   assert.equal(source.nodes.find(n => n.node_id === 'card').amount_krw, undefined);
   assert.deepEqual(source.nodes.filter(n => n.role === 'text').map(n => n.amount_krw), [39900, 29900]);
+});
+
+test('reads a sibling button background when scanning a weak choice and its repair', async () => {
+  const backdrop = layer('back', 'RECTANGLE', '버튼 배경', [], {
+    absoluteBoundingBox: box(10, 10, 200, 48), fills: fill(0, 0, 0), cornerRadius: 6
+  });
+  const paid = layer('subscribe', 'FRAME', 'Button', [backdrop, caption('yes', '유료 가입', {
+    absoluteBoundingBox: box(24, 22, 80, 24), fills: fill(1, 1, 1), fontSize: 16
+  })], {absoluteBoundingBox: box(10, 10, 200, 48), reactions: [onClick(go('paid'))]});
+  const basicText = caption('no', '나중에', {absoluteBoundingBox: box(24, 74, 50, 16), fills: fill(0.8, 0.8, 0.8), fontSize: 14});
+  const basic = layer('skip', 'FRAME', 'Button', [basicText], {
+    absoluteBoundingBox: box(10, 66, 90, 30), reactions: [onClick(go('free'))]
+  });
+  const root = screen('offer', '가입 제안', [paid, basic], {fills: fill(1, 1, 1)});
+  const app = api([root, screen('paid', '유료', []), screen('free', '기본', [])], root.id);
+  const inspect = async () => analyzeJourney(await readJourney(app, root))
+    .find(finding => finding.pattern === 'misleading_visual_hierarchy');
+  const risk = await inspect();
+  assert.equal(risk.status, 'risk_signal');
+  assert.deepEqual(risk.evidence.map(e => e.node_id), ['subscribe', 'skip']);
+  basic.absoluteBoundingBox = box(10, 66, 200, 48);
+  basicText.fills = fill(0.2, 0.2, 0.2);
+  assert.equal((await inspect()).status, 'signal_absent');
+});
+
+test('uses visual stacking order and withholds contrast when sibling paint is ambiguous', async () => {
+  const bounds = box(0, 0, 100, 40);
+  const black = {absoluteBoundingBox: bounds, fills: fill(0, 0, 0)};
+  const cases = [
+    {name: 'reverse auto-layout', labelFirst: true, reverse: true, expected: '#000000'},
+    {name: 'foreground rectangle', labelFirst: true},
+    {name: 'partial text coverage', change: {absoluteBoundingBox: box(0, 0, 25, 40)}},
+    {name: 'transparent shape', change: {opacity: 0.4}},
+    {name: 'gradient', change: {fills: [{type: 'GRADIENT_LINEAR'}]}},
+    {name: 'paint blended with page', change: {fills: [{...fill(0, 0, 0)[0], blendMode: 'SCREEN'}]}},
+    {name: 'rotated rectangle', change: {absoluteTransform: [[0.7, -0.7, 0], [0.7, 0.7, 0]]}},
+    {name: 'unpainted hotspot', labelFirst: true, change: {fills: []}, expected: '#FFFFFF'},
+    {name: 'hidden foreground', labelFirst: true, change: {visible: false}, expected: '#FFFFFF'}
+  ];
+  for (const {name, labelFirst, reverse, change, expected} of cases) {
+    const shape = layer('shape', 'RECTANGLE', '배경', [], {...black, ...change});
+    const label = caption('text', '가입하기', {absoluteBoundingBox: box(15, 12, 60, 16), fontSize: 16, fills: fill(1, 1, 1)});
+    const children = labelFirst ? [label, shape] : [shape, label];
+    const button = layer('button', 'FRAME', 'Button', children, {
+      absoluteBoundingBox: bounds, layoutMode: reverse ? 'HORIZONTAL' : 'NONE', itemReverseZIndex: Boolean(reverse)
+    });
+    const root = screen('offer', '가입', [button], {fills: fill(1, 1, 1)});
+    const journey = await readJourney(api([root]), root);
+    assert.equal(journey.states[0].nodes[0].style.background_color, expected, name);
+  }
 });

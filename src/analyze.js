@@ -205,8 +205,10 @@ function offerPrice(state) {
   const controls = new Map(state.nodes.filter(button).map(n => [n.node_id, n]));
   const isCard = n => /[가-힣a-z]/i.test(n.text.replace(/₩?\s*[\d,]+\s*원?/g, "")) &&
     !/결제|구매하기|장바구니|담기|선택|추가|옵션|동의|계속|신청|가입|주문하기/.test(n.text);
+  // A single product label may put the included fee note after the total.
+  const includesFee = /(?:^|\s)총(?:액|\s*가격)?\s*(?:₩\s*)?[\d,]+\s*원\s*[(（·,]?\s*(?:필수\s*)?(?:배송비|수수료|발권비)\s*포함\s*[)）.]?\s*$/;
   const isPrice = n => money(n) !== null && !totalText.test(n.text) &&
-    !feeText.test(n.text) && !/할인액|적립|쿠폰|정가/.test(n.text);
+    (!feeText.test(n.text) || includesFee.test(n.text)) && !/할인액|적립|쿠폰|정가/.test(n.text);
   const represented = new Set(), options = [];
   for (const n of state.nodes) {
     if (n.role !== "text" || !isPrice(n)) continue;

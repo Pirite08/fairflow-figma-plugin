@@ -112,6 +112,21 @@ test("a detail price cannot replace an earlier ambiguous first display", () => {
   assert.equal(result(input, pricing)[0].status, "needs_context");
 });
 
+test("a first price and its included-fee note can share a single text layer", () => {
+  const input = liveFixture(9);
+  const display = input.states[0].nodes[0];
+  input.states[0].nodes = [display, input.states[0].nodes.at(-1)];
+  input.states.at(-1).nodes[1].text = "필수 고정 배송비 3,000원";
+  display.text = "총 32,900원 (필수 배송비 포함)";
+  const [fixed] = result(input, pricing);
+  assert.equal(fixed.status, "signal_absent");
+  assert.ok(fixed.evidence.some(ref => ref.node_id === display.node_id));
+  for (const note of ["총 배송비 3,000원", "총 32,900원 (필수 배송비 별도)", "총 32,900원 (필수 배송비 포함 여부 미정)"]) {
+    display.text = note;
+    assert.equal(result(input, pricing)[0].status, "needs_context", note);
+  }
+});
+
 test("advance disclosure of a variable fee or inconsistent product names requests review", () => {
   const input = liveFixture(8);
   input.states[0].nodes.push({node_id: "terms", role: "text", text: "배송비는 주소에 따라 달라집니다."});
