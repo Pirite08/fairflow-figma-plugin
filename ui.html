@@ -161,33 +161,45 @@
     .pattern { font-size: 14px; font-weight: 730; letter-spacing: -.35px; overflow-wrap: anywhere; }
     .badge { color: var(--status-ink); background: var(--status-bg); padding: 2px 7px; border-radius: 4px; font-size: 11px; font-weight: 700; }
     .finding-body { padding: 0 12px 13px; overflow-wrap: anywhere; }
-    .finding-compare { display: grid; grid-template-columns: minmax(0, 1fr) 14px minmax(0, 1fr); align-items: stretch; gap: 6px; }
-    .finding-panel { min-width: 0; padding: 10px; border: 1px solid #e1e8df; border-radius: 7px; }
-    .finding-panel.problem { background: #fbf4ef; border-color: #ede0d7; }
-    .finding-panel.solution { background: #f0f6ee; }
-    .finding-panel.problem .mini-heading { color: #8d351f; }
-    .compare-arrow { align-self: center; color: #617465; text-align: center; }
     .reason, .suggestion { color: #435349; font-size: 12px; }
-    .finding-panel .reason, .finding-panel .suggestion { margin-top: 6px; }
     .finding-body > .suggestion { margin-top: 8px; }
-    .diagram { display: grid; gap: 4px; min-height: 45px; align-content: center; margin-top: 5px; }
-    .diagram-choice {
-      display: flex; align-items: center; gap: 6px; color: #253e32; font-size: 12px; font-weight: 700;
+    .review-title { font-size: 17px; line-height: 1.4; letter-spacing: -.4px; }
+    .review-title + .reason, .review-alternative h4 + p { margin-top: 4px; }
+    .review-rule {
+      margin-top: 11px; padding: 8px 10px; border-radius: 5px;
+      border-left: 3px solid #87948a; background: #f1f4f1; color: #334e40; font-size: 12px;
     }
-    .check-illustration {
-      display: grid; place-items: center; flex: 0 0 16px; height: 16px; border: 1px solid #64796b;
-      border-radius: 4px; background: #fff; color: #fff; line-height: 1; font-size: 11px;
+    .review-rule header { display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 8px; }
+    .review-citation { font-weight: 750; }
+    .review-rule p { margin-top: 4px; }
+    .review-rule p + p { color: #45584d; margin-top: 3px; }
+    .review-solutions { margin-top: 13px; }
+    .review-solutions > h3 { margin-bottom: 6px; font-size: 13px; }
+    .review-grid, .design-thumbnails { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
+    .review-grid.single { grid-template-columns: minmax(0, 1fr); }
+    .review-alternative { border: 1px solid #dce6dd; padding: 8px; border-radius: 6px; min-width: 0; }
+    .review-alternative h4 { margin: 0; font-size: 12px; line-height: 1.45; }
+    .review-alternative p { color: #435349; font-size: 11px; line-height: 1.5; }
+    .review-sketch { display: grid; gap: 4px; margin-bottom: 6px; color: #284c3a; font-size: 11px; }
+    .review-sketch.checked, .review-sketch.buttons { background: #eff5ee; padding: 6px; border-radius: 4px; }
+    .sketch-option { display: flex; align-items: center; gap: 5px; white-space: normal; overflow-wrap: anywhere; }
+    .sketch-option::before { content: ""; flex: 0 0 9px; height: 9px; border: 1px solid #698171; background: #fff; border-radius: 2px; }
+    .sketch-option.default::before { background: #355944; }
+    .sketch-button { border: 1px solid #a7bcae; padding: 2px 5px; border-radius: 3px; font-weight: 650; }
+    .review-sketch.price { background: #eff5ee; padding: 5px 6px; border-radius: 4px; }
+    .review-sketch.price strong { font-size: 14px; font-variant-numeric: tabular-nums; }
+    .copy-diff { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin: 6px 0; }
+    .copy-value { min-width: 0; padding: 6px 8px; border-radius: 4px; background: #f6f1ee; }
+    .copy-value:last-child { background: #edf5eb; }
+    .copy-value strong { display: block; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; }
+    .review-cta { margin-top: 8px; border-radius: 5px; padding: 5px 8px; font-size: 11px; font-weight: 650; }
+    .design-thumbnails { margin: 7px 0; }
+    .design-thumb {
+      display: flex; flex-direction: column; align-items: center; min-width: 0;
+      padding: 6px; gap: 4px; border: 1px solid #dce5db; border-radius: 5px;
+      color: #264f39; background: #f7f9f5; font-size: 11px; font-weight: 650;
     }
-    .check-illustration[data-checked="true"] { border-color: #8d351f; background: #8d351f; }
-    .diagram-note { color: #4b6155; font-size: 11px; }
-    .diagram-button {
-      padding: 3px 6px; border: 1px solid #9daf9e; border-radius: 4px; text-align: center;
-      color: #254638; font-size: 11px; font-weight: 650; line-height: 1.3;
-    }
-    .diagram-button.emphasized { background: #305946; border-color: #305946; color: #fff; }
-    .diagram-button.muted { width: 56%; border-style: dashed; color: #5c6d62; font-weight: 500; font-size: 10px; }
-    .diagram-price { color: #284c3a; font-size: 18px; font-weight: 750; line-height: 1.2; font-variant-numeric: tabular-nums; }
-    .problem .diagram-price { color: #8d351f; }
+    .design-thumb img { display: block; width: 100%; height: 160px; object-fit: contain; }
     .evidence { margin-top: 9px; display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
     .evidence .mini-heading { color: #53665a; margin-right: 2px; }
     .layer {
@@ -227,18 +239,17 @@
     @media (max-width: 360px) {
       main, .masthead { padding-left: 10px; padding-right: 10px; }
       .brand { font-size: 15px; gap: 6px; }
-      .finding-compare { grid-template-columns: minmax(0, 1fr); }
-      .compare-arrow { transform: rotate(90deg); }
+      .review-grid { grid-template-columns: minmax(0, 1fr); }
     }
   </style>
 </head>
 <body>
   <header class="masthead">
-    <div class="brand"><span class="mark" aria-hidden="true"></span>FairFlow AI</div>
+    <div class="brand"><span class="mark" aria-hidden="true"></span>FairFlow</div>
     <div class="scan-tools">
       <p id="selection-info" class="selection-info" hidden></p>
       <div class="actions">
-        <button id="scan-selection" class="primary" type="button">프레임 검사</button>
+        <button id="scan-selection" class="primary" type="button">검사</button>
         <button id="scan" class="primary" type="button" hidden>다시 검사</button>
       </div>
     </div>
@@ -325,9 +336,9 @@
       scan.className = anotherFrame ? 'secondary' : 'primary';
       scanSelection.hidden = canRescan && selectionKnown && !anotherFrame;
       scanSelection.disabled = busy || (selectionKnown && !selected);
-      scanSelection.textContent = busy && !canRescan ? '검사 중…' : canRescan ? '선택 검사' : '프레임 검사';
+      scanSelection.textContent = busy && !canRescan ? '검사 중…' : canRescan ? '선택 검사' : '검사';
       scanSelection.className = canRescan && !anotherFrame ? 'secondary' : 'primary';
-      selectionInfo.hidden = !anotherFrame || busy;
+      selectionInfo.hidden = !canRescan || !anotherFrame || busy;
       selectionInfo.textContent = anotherFrame ? '선택됨 · ' + selected.name : '';
       selectionInfo.title = anotherFrame ? selected.name : '';
     }
@@ -347,6 +358,11 @@
       announcement.textContent = title;
       notice.textContent = '';
       showControls(false, loading);
+    }
+
+    function showSelection() {
+      if (selected) showMessage(selected.name, '검사를 누르면 이 프레임과 연결된 화면을 확인합니다.');
+      else showMessage('프레임을 선택하세요', 'Figma 캔버스에서 검사할 프레임 1개를 선택합니다.');
     }
 
     function money(value) {
@@ -418,6 +434,8 @@
       if (shippingHost.hidden) return;
       shippingHost.append(element('h2', '', comparison ? '배송안별 주문 총액' : '배송 옵션 수정안'));
       if (comparison) {
+        const thumbnails = designThumbnails(comparison.thumbnails, key => send({ type: 'shipping-focus', key }));
+        if (thumbnails) shippingHost.append(thumbnails);
         const columns = comparison.columns.filter(column => Object.hasOwn(variantNames, column.key)).map(shippingColumn);
         const options = element('fieldset', 'shipping-options');
         options.append(element('legend', '', '배송 선택 조건'));
@@ -856,6 +874,8 @@
         card.setAttribute('aria-labelledby', heading.id);
         card.append(heading);
         if (state.comparison) {
+          const thumbnails = designThumbnails(state.comparison.thumbnails, key => send({ type: 'proposal-focus', kind, key }));
+          if (thumbnails) card.append(thumbnails);
           for (const column of state.comparison.columns) {
             if (Object.hasOwn(variantNames, column.key)) card.append(proposalRow(kind, column));
           }
@@ -892,7 +912,8 @@
       renderShipping();
       renderProposals();
       if (advancedTools) {
-        advancedTools.hidden = shippingHost.hidden && proposalHost.hidden;
+        const hasDesign = comparison || shippingError || [...proposalStates.values()].some(state => state.comparison || state.error);
+        advancedTools.hidden = (shippingHost.hidden && proposalHost.hidden) || !(hasDesign || comparisonBusy());
         if (comparisonBusy()) advancedTools.open = true;
         showControls(true, comparisonBusy());
       }
@@ -913,29 +934,97 @@
       renderComparisons();
     }
 
-    function findingDiagram(finding, improved) {
-      const diagram = element('div', 'diagram');
-      if (finding.pattern === 'paid_option_preselection') {
-        const choice = element('div', 'diagram-choice');
-        const check = element('span', 'check-illustration', improved ? '' : '✓');
-        check.dataset.checked = String(!improved);
-        check.setAttribute('aria-hidden', 'true');
-        choice.append(check, element('span', '', finding.evidence?.[0]?.label || '유료 옵션'));
-        diagram.append(choice, element('span', 'diagram-note', improved ? '직접 선택할 때 적용' : '처음부터 선택됨'));
-      } else if (finding.pattern === 'misleading_visual_hierarchy') {
-        diagram.append(
-          element('span', 'diagram-button' + (improved ? '' : ' emphasized'), '강조된 선택지'),
-          element('span', 'diagram-button' + (improved ? '' : ' muted'), '기본 선택지')
-        );
-      } else if (finding.pattern === 'drip_pricing' && Number.isSafeInteger(finding.pricing?.firstAmount) &&
-        Number.isSafeInteger(finding.pricing?.finalAmount) && Number.isSafeInteger(finding.pricing?.fee?.amount)) {
-        const { firstAmount, finalAmount, fee } = finding.pricing;
-        diagram.append(element('strong', 'diagram-price', money(improved ? finalAmount : firstAmount)),
-          element('span', 'diagram-note', improved ? '필수 ' + (fee.label || '비용') + ' ' + money(fee.amount) + ' 포함' : '첫 화면에 표시된 가격'));
-      } else {
-        return null;
+    function designThumbnails(images, focus) {
+      const grid = element('div', 'design-thumbnails');
+      let count = 0;
+      for (const key of ['minimal', 'layout']) {
+        const frame = images?.[key];
+        if (!frame?.png || !/^[A-Za-z0-9+/]+={0,2}$/.test(frame.png)) continue;
+        const button = panelButton('', 'design-thumb', () => focus(key));
+        const image = element('img');
+        image.src = 'data:image/png;base64,' + frame.png;
+        image.alt = variantNames[key] + ' Figma 화면';
+        image.loading = 'lazy';
+        button.append(image, element('span', '', variantNames[key] + ' 열기'));
+        grid.append(button);
+        count++;
       }
-      return diagram;
+      return count ? grid : null;
+    }
+
+    function reviewRule(rule) {
+      const block = element('section', 'review-rule');
+      const header = element('header');
+      header.append(element('span', 'review-citation', rule.citation),
+        panelButton('조문 보기 ↗', 'shipping-link', () => send({ type: 'review-law' })));
+      block.append(header, element('p', '', rule.criterion), element('p', '', rule.connection));
+      return block;
+    }
+
+    function copyDiff(before, after) {
+      const diff = element('div', 'copy-diff');
+      for (const [label, text] of [['현재 문구', before], ['바꿀 문구', after]]) {
+        const value = element('div', 'copy-value');
+        value.append(element('span', 'mini-heading', label), element('strong', '', text));
+        diff.append(value);
+      }
+      return diff;
+    }
+
+    function reviewAlternative(alternative, index) {
+      const card = element('article', 'review-alternative');
+      card.dataset.kind = alternative.kind;
+      if (alternative.kind === 'copy') {
+        card.append(element('h4', '', alternative.title));
+        for (const change of alternative.changes || [alternative]) {
+          if (change.label) card.append(element('span', 'mini-heading', change.label));
+          card.append(copyDiff(change.before, change.after));
+        }
+      } else {
+        const sketch = element('div', 'review-sketch');
+        if (alternative.visual === 'checkbox') {
+          sketch.className += ' checked';
+          if (index > 0) sketch.append(element('span', 'sketch-option default', '기본 옵션'));
+          sketch.append(element('span', 'sketch-option', alternative.detail || '추가 유료 옵션'));
+          if (index === 0) sketch.append(element('span', '', alternative.after));
+        } else if (alternative.visual === 'buttons') {
+          sketch.className += ' buttons';
+          const labels = index > 0 ? alternative.after.split(' / ', 2) : ['강조된 선택지', alternative.detail || '기본 선택지'];
+          for (const label of labels) sketch.append(element('span', 'sketch-button', label));
+        } else if (alternative.visual === 'price') {
+          sketch.className += ' price';
+          sketch.append(element('strong', '', alternative.after), element('span', '', alternative.detail));
+        }
+        card.append(sketch, element('h4', '', alternative.title));
+      }
+      card.append(element('p', '', alternative.description));
+      return card;
+    }
+
+    const designKinds = { paid_option_preselection: 'shipping', misleading_visual_hierarchy: 'hierarchy', drip_pricing: 'price' };
+
+    function reviewSolutions(finding) {
+      const alternatives = finding.review.alternatives.slice(0, 3);
+      const solution = element('section', 'review-solutions');
+      const design = alternatives.some(alternative => alternative.kind === 'design');
+      const grid = element('div', 'review-grid' + (alternatives.length === 1 ? ' single' : ''));
+      solution.append(element('h3', '', design ? '화면을 바꾸는 방법' : '문구를 바꾸는 방법'), grid);
+      alternatives.forEach((alternative, index) => grid.append(reviewAlternative(alternative, index)));
+      const kind = designKinds[finding.pattern];
+      const available = kind === 'shipping' ? shippingOffer : proposalStates.get(kind)?.offer?.available;
+      if (design && available) {
+        const button = panelButton('Figma 시안 보기', 'review-cta secondary', () => {
+          if (!advancedTools) return;
+          advancedTools.hidden = false;
+          advancedTools.open = true;
+          advancedTools.querySelector('#' + kind + '-create')?.click();
+          advancedTools.querySelector(kind === 'shipping' ? '#shipping' : '#' + kind + '-proposal')
+            ?.scrollIntoView?.({block: 'start'});
+        });
+        button.dataset.reviewDesign = kind;
+        solution.append(button);
+      }
+      return solution;
     }
 
     function findingCard(finding) {
@@ -947,22 +1036,9 @@
       const summary = element('summary');
       summary.append(element('span', 'pattern', pattern), element('span', 'badge', statuses[status].label));
       const body = element('div', 'finding-body');
-      if (status === 'risk_signal') {
-        const comparisonView = element('div', 'finding-compare');
-        const problem = element('div', 'finding-panel problem');
-        const solution = element('div', 'finding-panel solution');
-        const arrow = element('span', 'compare-arrow', '→');
-        arrow.setAttribute('aria-hidden', 'true');
-        problem.append(element('p', 'mini-heading', '문제'));
-        solution.append(element('p', 'mini-heading', '수정 방향'));
-        const before = findingDiagram(finding, false);
-        const after = findingDiagram(finding, true);
-        if (before) problem.append(before);
-        if (after) solution.append(after);
-        problem.append(element('p', 'reason', finding.reason));
-        solution.append(element('p', 'suggestion', finding.suggestion));
-        comparisonView.append(problem, arrow, solution);
-        body.append(comparisonView);
+      const review = status === 'risk_signal' && finding.review;
+      if (review) {
+        body.append(element('h3', 'review-title', review.headline), element('p', 'reason', review.explanation));
       } else {
         body.append(element('p', 'reason', finding.reason));
         if (finding.suggestion) body.append(element('p', 'suggestion', finding.suggestion));
@@ -982,6 +1058,7 @@
         });
         body.append(evidence);
       }
+      if (review) body.append(reviewRule(review.rule), reviewSolutions(finding));
       card.append(summary, body);
       return card;
     }
@@ -989,10 +1066,13 @@
     function showResult(result) {
       if (result.rootId !== inspectedRoot) resetComparisons();
       inspectedRoot = result.rootId || null;
-      shippingOffer = result.shipping || null;
+      const riskDesign = pattern => result.findings.some(finding => finding.status === 'risk_signal' && finding.pattern === pattern &&
+        (!finding.review || finding.review.alternatives.some(alternative => alternative.kind === 'design')));
+      shippingOffer = riskDesign('paid_option_preselection') ? result.shipping || null : null;
       for (const kind of Object.keys(proposalKinds)) {
         const previous = proposalStates.get(kind);
-        proposalStates.set(kind, { ...previous, offer: result.proposals?.[kind] });
+        const pattern = kind === 'hierarchy' ? 'misleading_visual_hierarchy' : 'drip_pricing';
+        proposalStates.set(kind, { ...previous, offer: riskDesign(pattern) ? result.proposals?.[kind] : null });
       }
       const summary = element('section', 'summary');
       const findings = [...result.findings].sort((a, b) => (statuses[a.status]?.order ?? 1) - (statuses[b.status]?.order ?? 1));
@@ -1002,7 +1082,9 @@
       const summaryLine = element('div', 'summary-line');
       const frame = element('div');
       frame.append(element('p', 'eyebrow', '검사한 프레임'), element('h1', '', result.frameName));
-      const riskBadge = element('p', 'risk-count', '위험 신호 ' + risks.length + '건');
+      const clean = clearCount > 0 && !result.warnings?.length;
+      const outcome = risks.length ? '고칠 부분 ' + risks.length + '개' : clean ? '문제 없음' : '추가 확인 필요';
+      const riskBadge = element('p', 'risk-count', outcome);
       riskBadge.dataset.risk = String(risks.length > 0);
       summaryLine.append(frame, riskBadge);
       summary.append(summaryLine);
@@ -1017,7 +1099,13 @@
       const section = element('section', 'findings');
       section.setAttribute('aria-label', '위험 신호');
       risks.forEach(finding => section.append(findingCard(finding)));
-      if (!risks.length && unsureCount) section.append(element('p', 'empty-result', '추가로 확인해야 할 항목이 있습니다.'));
+      if (!risks.length && clean) {
+        const scope = unsureCount ? '확인한 ' + clearCount + '개 항목 기준입니다. 추가 확인 항목은 아래에서 볼 수 있습니다.'
+          : '검사한 화면과 연결에서 확인된 위험 신호가 없습니다.';
+        section.append(element('p', 'empty-result', scope));
+      } else if (!risks.length && unsureCount) {
+        section.append(element('p', 'empty-result', '아래 항목의 화면과 연결을 더 확인하세요.'));
+      }
       if (!findings.length) section.append(element('p', 'empty-result', '판단할 수 있는 항목이 없습니다.'));
       const other = element('details', 'other-findings');
       const statusesSummary = [
@@ -1028,6 +1116,7 @@
       const otherFindings = findings.filter(finding => finding.status !== 'risk_signal');
       otherFindings.forEach(finding => other.append(findingCard(finding)));
       other.hidden = !otherFindings.length;
+      other.open = !risks.length && !clean && unsureCount > 0;
       const details = element('details', 'advanced-tools');
       advancedTools = details;
       details.open = advancedOpen;
@@ -1063,10 +1152,11 @@
         case 'selection':
           selectionKnown = true;
           selected = message.frameId ? { id: message.frameId, name: message.name || '프레임' } : null;
-          showControls(rescanAvailable, controlsBusy);
+          if (!rescanAvailable && !controlsBusy) showSelection();
+          else showControls(rescanAvailable, controlsBusy);
           break;
         case 'result': showResult(message); break;
-        case 'empty': resetComparisons(); showMessage('검사할 프레임을 선택하세요', 'Figma 캔버스에서 프레임 1개를 선택합니다.'); break;
+        case 'empty': resetComparisons(); showSelection(); break;
         case 'loading': showMessage('검사 중', message.message || '프레임의 레이어와 연결을 확인하고 있습니다.', true); break;
         case 'error': showMessage('검사를 마치지 못했습니다', message.message || '시작 프레임을 선택한 뒤 다시 검사하세요.'); break;
         case 'notice': notice.textContent = message.message || ''; break;
@@ -1083,7 +1173,7 @@
         case 'proposal-error': proposalReply(message); break;
       }
     });
-    showMessage('검사할 프레임을 선택하세요', 'Figma 캔버스에서 프레임 1개를 선택합니다.');
+    showSelection();
     send({ type: 'ready' });
   </script>
 </body>

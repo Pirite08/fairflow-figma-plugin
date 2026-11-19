@@ -96,6 +96,7 @@ test("comparison rescans the same three journeys and opens only registered compa
   const send = message => api.ui.onmessage(message);
   page.selection = [nodes.get("shop")];
   await send({ type: "ready" });
+  await send({ type: "scan-selection" });
   await send({ type: "shipping-create" });
   assert.deepEqual(messages.at(-1).comparison.columns.map(column => [column.key, column.defaultOption, column.status]), [
     ["original", "fast", "risk_signal"], ["minimal", "basic", "signal_absent"], ["layout", "basic", "signal_absent"]

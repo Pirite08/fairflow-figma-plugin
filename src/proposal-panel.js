@@ -1,3 +1,5 @@
+import { renderReviewThumbnails } from "./review-previews.js";
+
 const catalog = {
   hierarchy: {
     pattern: "misleading_visual_hierarchy",
@@ -73,7 +75,8 @@ export function createProposalPanel({ api, inspectFrame, builders, post, revealN
           steps: spec?.steps || []
         });
       }
-      const comparison = { rootId, referenceFrameId: entry.referenceFrameId, columns };
+      const thumbnails = await renderReviewThumbnails(api, columns);
+      const comparison = { rootId, referenceFrameId: entry.referenceFrameId, columns, thumbnails };
       entry.result = comparison;
       if (context().generation === generation) post("proposal-comparison", { kind, rootId, comparison });
     } catch (error) {

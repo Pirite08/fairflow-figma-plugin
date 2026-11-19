@@ -33,6 +33,7 @@ test("proposal comparisons re-read edited routes without changing the pinned roo
   const send = message => api.ui.onmessage(message);
   page.selection = [nodes.get("root")];
   await send({ type: "ready" });
+  await send({ type: "scan-selection" });
   assert.deepEqual(Object.keys(messages.at(-1).proposals), ["hierarchy", "price"]);
   await send({ type: "proposal-create", kind: "hierarchy" });
   await send({ type: "proposal-create", kind: "price" });

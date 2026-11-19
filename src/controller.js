@@ -1,6 +1,7 @@
 import { createShippingPanel } from "./shipping-panel.js";
 import { shippingQuote } from "./shipping.js";
 import { createProposalPanel, proposalOffers } from "./proposal-panel.js";
+import { lawUrl } from "./review-content.js";
 
 // The inspected frame stays pinned when a designer selects an evidence layer.
 export function startPanel(api, inspectFrame, makeShippingDesigns, proposalBuilders) {
@@ -104,7 +105,7 @@ export function startPanel(api, inspectFrame, makeShippingDesigns, proposalBuild
       case "ready":
         ready = true;
         postSelection();
-        return scan(true);
+        break;
       case "scan-selection":
         return scan(true);
       case "scan":
@@ -117,6 +118,9 @@ export function startPanel(api, inspectFrame, makeShippingDesigns, proposalBuild
         break;
       case "focus":
         return focus(message);
+      case "review-law":
+        api.openExternal(lawUrl);
+        break;
       case "shipping-create":
       case "shipping-rescan":
         if (!proposals?.busy) return shipping?.update(message.type === "shipping-create");
@@ -146,6 +150,5 @@ export function startPanel(api, inspectFrame, makeShippingDesigns, proposalBuild
   api.on("selectionchange", () => {
     if (!ready) return;
     postSelection();
-    if (!rootId && selectedFrame()) return scan(true);
   });
 }

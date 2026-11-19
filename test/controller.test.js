@@ -27,14 +27,22 @@ function report(frame) {
   };
 }
 
-test("empty selection is actionable and a selected frame can be scanned", async () => {
-  const { api, page, frame, messages } = host();
-  startPanel(api, async (root) => report(root));
+test("selection updates the panel without starting an inspection", async () => {
+  const { api, page, frame, messages, listeners } = host();
+  const inspected = [];
+  startPanel(api, async root => { inspected.push(root.id); return report(root); });
   await api.ui.onmessage({ type: "ready" });
+  assert.deepEqual(messages.at(-1), { type: "selection", frameId: null, name: null });
+  await api.ui.onmessage({ type: "scan-selection" });
   assert.equal(messages.at(-1).type, "empty");
   page.selection = [frame];
+  await listeners.selectionchange();
+  assert.deepEqual(messages.at(-1), { type: "selection", frameId: frame.id, name: frame.name });
+  assert.deepEqual(inspected, []);
+  assert.equal(messages.some(message => message.type === "loading" || message.type === "result"), false);
   await api.ui.onmessage({ type: "scan-selection" });
   assert.equal(messages.at(-1).frameName, "주문");
+  assert.deepEqual(inspected, [frame.id]);
 });
 
 test("focus uses scanned evidence and recheck retains its original root", async () => {
@@ -43,6 +51,7 @@ test("focus uses scanned evidence and recheck retains its original root", async 
   page.selection = [frame];
   startPanel(api, async (root) => { scans.push(root.id); return report(root); });
   await api.ui.onmessage({ type: "ready" });
+  await api.ui.onmessage({ type: "scan-selection" });
   await api.ui.onmessage({ type: "focus", node_id: layer.id, state_id: frame.id });
   assert.deepEqual(page.selection, [layer]);
   assert.deepEqual(zooms, [[layer]]);
@@ -61,7 +70,8 @@ test("an earlier slow scan cannot replace the new frame's results", async () => 
   const pending = new Promise((resolve) => { finish = resolve; });
   page.selection = [frame];
   startPanel(api, async (root) => { if (root.id === frame.id) await pending; return report(root); });
-  const firstScan = api.ui.onmessage({ type: "ready" });
+  await api.ui.onmessage({ type: "ready" });
+  const firstScan = api.ui.onmessage({ type: "scan-selection" });
   page.selection = [nextFrame];
   await api.ui.onmessage({ type: "scan-selection" });
   finish();
@@ -81,6 +91,7 @@ test("manual journey-start confirmation is scoped to the pinned frame", async ()
     return { ...report(root), canConfirmStart: !confirmed };
   });
   await api.ui.onmessage({ type: "ready" });
+  await api.ui.onmessage({ type: "scan-selection" });
   await api.ui.onmessage({ type: "confirm-start" });
   await api.ui.onmessage({ type: "scan" });
   page.selection = [other];

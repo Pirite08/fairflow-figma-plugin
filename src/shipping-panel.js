@@ -1,4 +1,5 @@
 import { cloneAdoptedJourney } from "./proposal-frames.js";
+import { renderReviewThumbnails } from "./review-previews.js";
 import { renderShippingFrame, renderShippingPreview } from "./shipping-preview.js";
 import { shippingPattern, shippingQuote } from "./shipping.js";
 
@@ -76,7 +77,8 @@ export function createShippingPanel({ api, inspectFrame, makeShippingDesigns, po
         comparisons.set(rootId, entry);
       }
       const columns = (await readColumns(entry, original)).map(({ spec, ...column }) => column);
-      entry.result = { rootId, referenceFrameId: entry.referenceFrameId, ...shippingQuote(original?.shipping), columns };
+      const thumbnails = await renderReviewThumbnails(api, columns);
+      entry.result = { rootId, referenceFrameId: entry.referenceFrameId, ...shippingQuote(original?.shipping), columns, thumbnails };
       if (context().generation === generation) showExisting(rootId);
     } catch (error) {
       console.error("FairFlow shipping comparison", error);

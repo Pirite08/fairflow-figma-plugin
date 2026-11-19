@@ -5,6 +5,8 @@ import { readShippingScenario } from "./shipping.js";
 import { createShippingDesigns } from "./shipping-design.js";
 import { createHierarchyProposals, readHierarchyProposal } from "./hierarchy-proposals.js";
 import { createPricingProposals, readPricingProposal } from "./pricing-proposals.js";
+import { reviewContent } from "./review-content.js";
+import { editablePriceCopy } from "./review-previews.js";
 
 figma.showUI(__html__, { width: 540, height: 700, themeColors: true });
 startPanel(figma, async (frame, startConfirmedByDesigner) => {
@@ -19,12 +21,19 @@ startPanel(figma, async (frame, startConfirmedByDesigner) => {
     }
     layerLabels.set(state.state_id, labels);
   }
-  const findings = analyzeJourney(journey).map((finding) => ({
-    ...finding,
-    evidence: finding.evidence.map((item) => ({
-      ...item,
-      label: layerLabels.get(item.state_id)?.get(item.node_id) || "프레임 보기"
-    }))
+  const findings = await Promise.all(analyzeJourney(journey).map(async (finding) => {
+    const result = {
+      ...finding,
+      evidence: finding.evidence.map((item) => ({
+        ...item,
+        label: layerLabels.get(item.state_id)?.get(item.node_id) || "프레임 보기"
+      }))
+    };
+    if (finding.pattern === "drip_pricing" && finding.status === "risk_signal") {
+      result.copyEdit = await editablePriceCopy(finding, journey, figma);
+    }
+    const review = reviewContent(result);
+    return review ? { ...result, review } : result;
   }));
   return {
     frameName: frame.name,

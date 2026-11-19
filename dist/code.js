@@ -66,9 +66,9 @@
       if (row.length !== 2) continue;
       const value = row.find((n) => /^\s*(?:₩\s*[\d,]+(?:\s*원)?|[\d,]+\s*원)\s*$/.test(n.text));
       if (!value) continue;
-      const label = row.find((n) => n !== value);
-      if (money(label) !== null || !(feeText.test(label.text) || totalText.test(label.text) || /상품|기본\s*요금/.test(label.text))) continue;
-      joined.set(value.node_id, __spreadProps(__spreadValues({}, value), { text: label.text + " " + value.text, price_label_id: label.node_id }));
+      const label2 = row.find((n) => n !== value);
+      if (money(label2) !== null || !(feeText.test(label2.text) || totalText.test(label2.text) || /상품|기본\s*요금/.test(label2.text))) continue;
+      joined.set(value.node_id, __spreadProps(__spreadValues({}, value), { text: label2.text + " " + value.text, price_label_id: label2.node_id }));
     }
     return joined.size ? __spreadProps(__spreadValues({}, state), { nodes: state.nodes.map((n) => joined.get(n.node_id) || n) }) : state;
   }
@@ -274,8 +274,8 @@
   }
   function productIdentity(state) {
     if (state.product_id || state.product_name) return state.product_id || state.product_name;
-    const label = state.nodes.find((n) => /^(?:상품명|상품\s*코드|SKU)\s*[:：]/i.test(n.text));
-    return label ? compact(label.text.split(/[:：]/).slice(1).join(":")) : null;
+    const label2 = state.nodes.find((n) => /^(?:상품명|상품\s*코드|SKU)\s*[:：]/i.test(n.text));
+    return label2 ? compact(label2.text.split(/[:：]/).slice(1).join(":")) : null;
   }
   function prices(graph, terms) {
     var _a, _b, _c, _d;
@@ -491,31 +491,31 @@
   function intersects(rect, clip2) {
     return !rect || !clip2 || rect.x < clip2.x + clip2.width && rect.x + rect.width > clip2.x && rect.y < clip2.y + clip2.height && rect.y + rect.height > clip2.y;
   }
-  function rectangleBackdrop(shape, label) {
+  function rectangleBackdrop(shape, label2) {
     var _a, _b, _c, _d;
     const rect = shape.absoluteBoundingBox;
     if (shape.type !== "RECTANGLE" || !rect || ((_a = shape.opacity) != null ? _a : 1) !== 1 || ((_b = shape.effects) == null ? void 0 : _b.some((effect) => effect.visible !== false)) || ((_c = shape.strokes) == null ? void 0 : _c.some(visiblePaint)) || shape.blendMode && !["NORMAL", "PASS_THROUGH"].includes(shape.blendMode)) return void 0;
     const transform = shape.absoluteTransform;
     if (transform && (transform[0][1] !== 0 || transform[1][0] !== 0)) return void 0;
-    const insetX = Math.min(label.x - rect.x, rect.x + rect.width - label.x - label.width);
-    const insetY = Math.min(label.y - rect.y, rect.y + rect.height - label.y - label.height);
+    const insetX = Math.min(label2.x - rect.x, rect.x + rect.width - label2.x - label2.width);
+    const insetY = Math.min(label2.y - rect.y, rect.y + rect.height - label2.y - label2.height);
     const radius = (_d = shape.cornerRadius) != null ? _d : 0;
     if (insetX < 0 || insetY < 0 || typeof radius !== "number" || radius > 0 && (shape.cornerSmoothing || Math.max(insetX, insetY) < radius)) return void 0;
     return solidColor(shape.fills);
   }
-  function siblingBackdrop(label, inherited) {
+  function siblingBackdrop(label2, inherited) {
     var _a, _b;
-    const parent = label.parent;
+    const parent = label2.parent;
     const siblings = parent == null ? void 0 : parent.children;
     if (!siblings || siblings.length < 2) return inherited;
-    const rect = label.absoluteBoundingBox;
+    const rect = label2.absoluteBoundingBox;
     if (!rect || siblings.length > 64) return void 0;
     const reversed = ["HORIZONTAL", "VERTICAL"].includes(parent.layoutMode) && parent.itemReverseZIndex;
     let behind = true;
     let color = inherited;
     for (let i = 0; i < siblings.length; i++) {
       const sibling = siblings[reversed ? siblings.length - 1 - i : i];
-      if (sibling.id === label.id) {
+      if (sibling.id === label2.id) {
         behind = false;
         continue;
       }
@@ -814,10 +814,10 @@
     const existing = page.children.slice();
     const owned = [];
     const names = new Set(existing.map((node) => node.name));
-    function copyFrame(frame, label) {
+    function copyFrame(frame, label2) {
       const copied = frame.clone();
       owned.push(copied);
-      const title = frame.name + " · " + label;
+      const title = frame.name + " · " + label2;
       let name = title;
       let index = 2;
       while (names.has(name)) name = title + " " + index++;
@@ -840,8 +840,8 @@
       return node;
     } };
   }
-  async function copyJourney(source, label, copyFrame) {
-    const copies = source.map((node) => copyFrame(node, label));
+  async function copyJourney(source, label2, copyFrame) {
+    const copies = source.map((node) => copyFrame(node, label2));
     const byId = /* @__PURE__ */ new Map(), sources = [];
     for (const [index, node] of source.entries()) indexCopy(node, copies[index], byId, sources);
     await wireCopies(sources, byId);
@@ -857,8 +857,8 @@
       const result = { referenceFrameId: reference.id };
       const columns = [[reference]];
       const starts = [];
-      for (const [kind, label] of [["minimal", "최소 수정안"], ["layout", "배치 변경안"]]) {
-        const { copies, byId } = await copyJourney(source, label, copyFrame);
+      for (const [kind, label2] of [["minimal", "최소 수정안"], ["layout", "배치 변경안"]]) {
+        const { copies, byId } = await copyJourney(source, label2, copyFrame);
         columns.push(copies);
         const frame = (id) => byId.get(id);
         const getNode = (sourceFrameId, nodeId) => {
@@ -995,7 +995,7 @@
   function sameReceipt(column, spec) {
     return column.frameId === spec.shippingFrameId && column.fastReviewId === spec.fastReviewId && column.basicReviewId === spec.basicReviewId && (/* @__PURE__ */ new Set([spec.shippingFrameId, spec.fastReviewId, spec.basicReviewId])).size === 3;
   }
-  async function loadColumn(api, column, label, pageId) {
+  async function loadColumn(api, column, label2, pageId) {
     const spec = column == null ? void 0 : column.spec;
     if (!spec || spec.pageId !== pageId || !sameReceipt(column, spec) || !["fast", "basic"].includes(spec.defaultOption) || ![spec.fastTotal, spec.basicTotal, spec.fastFee, spec.basicFee].every(Number.isSafeInteger)) {
       throw Error("배송 방법과 주문 화면의 연결·금액을 다시 검사한 뒤 겹쳐보세요.");
@@ -1017,7 +1017,7 @@
       key,
       label: actionLabel
     }, normalizedBounds(nodes[index + frames.length], frames[0], frameBounds)));
-    return { column, label, frames, nodes: nodes.slice(frames.length), hotspots };
+    return { column, label: label2, frames, nodes: nodes.slice(frames.length), hotspots };
   }
   async function exportImage(api, frame, pageId) {
     assertPage(api, pageId);
@@ -1046,10 +1046,10 @@
   }
   async function renderShippingPreview(api, columns) {
     const pageId = api.currentPage.id;
-    const candidates = await Promise.all(variants.map(([key, label]) => loadColumn(api, columns.find((column) => column.key === key), label, pageId)));
+    const candidates = await Promise.all(variants.map(([key, label2]) => loadColumn(api, columns.find((column) => column.key === key), label2, pageId)));
     const preview = [];
     for (const candidate of candidates) {
-      const { column, label, frames, hotspots, nodes } = candidate;
+      const { column, label: label2, frames, hotspots, nodes } = candidate;
       const [deliveryFrame, fastFrame, basicFrame] = frames;
       const frame = await exportImage(api, deliveryFrame, pageId);
       const fast = await exportImage(api, fastFrame, pageId);
@@ -1057,7 +1057,7 @@
       const { defaultOption, fastTotal, basicTotal, fastFee, basicFee } = column.spec;
       const data = {
         key: column.key,
-        label,
+        label: label2,
         frame,
         receipts: { fast, basic },
         hotspots,
@@ -1073,6 +1073,118 @@
     return { columns: preview };
   }
 
+  // src/review-previews.js
+  var keys = ["original", "minimal", "layout"];
+  var numericPrice = /^(\s*(?:(?:₩|KRW)\s*)?)(\d{1,3}(?:,\d{3})+|\d+)(\s*원?\s*)$/i;
+  var included = /포함(?:됨|입니다|됩니다)?[.。)]?\s*$/;
+  var separateFee = /별도|추가\s*결제|미포함|불포함/;
+  function visibleOnPage(node, pageId) {
+    for (let layer = node; layer; layer = layer.parent) {
+      if (layer.visible === false || layer.opacity === 0 || layer.removed) return false;
+      if (layer.type === "PAGE") return layer.id === pageId;
+    }
+    return false;
+  }
+  async function renderReviewThumbnails(api, columns) {
+    var _a;
+    const pageId = api.currentPage.id;
+    const thumbnails = Object.fromEntries(keys.map((key) => [key, null]));
+    const rendered = /* @__PURE__ */ new Map();
+    for (const key of keys) {
+      const id = (_a = columns.find((column) => column.key === key)) == null ? void 0 : _a.frameId;
+      if (!id) continue;
+      if (api.currentPage.id !== pageId) break;
+      try {
+        if (!rendered.has(id)) {
+          const frame = await api.getNodeByIdAsync(id);
+          const thumbnail = api.currentPage.id === pageId && (frame == null ? void 0 : frame.type) === "FRAME" && visibleOnPage(frame, pageId) ? await renderShippingFrame(api, frame) : null;
+          rendered.set(id, thumbnail);
+        }
+        thumbnails[key] = rendered.get(id);
+      } catch (e) {
+        rendered.set(id, null);
+      }
+    }
+    return api.currentPage.id === pageId ? thumbnails : Object.fromEntries(keys.map((key) => [key, null]));
+  }
+  function contains(outer, inner) {
+    return outer && inner && inner.width > 0 && inner.height > 0 && inner.x >= outer.x - 0.5 && inner.y >= outer.y - 0.5 && inner.x + inner.width <= outer.x + outer.width + 0.5 && inner.y + inner.height <= outer.y + outer.height + 0.5;
+  }
+  function visibleTextOnFrame(node, frameId, pageId, editable = false) {
+    if (!node || node.type !== "TEXT" || node.removed || node.hasMissingFont) return false;
+    let inFrame = false;
+    const bounds = node.absoluteBoundingBox;
+    for (let layer = node; layer; layer = layer.parent) {
+      if (layer.visible === false || layer.opacity === 0 || editable && layer.locked) return false;
+      if (layer.type === "PAGE") return inFrame && layer.id === pageId;
+      if (layer !== node && (layer.id === frameId || layer.clipsContent) && !contains(layer.absoluteBoundingBox, bounds))
+        return false;
+      if (layer.id === frameId) inFrame = true;
+    }
+    return false;
+  }
+  function editableCharacters(layer) {
+    var _a, _b, _c;
+    const property = (_a = layer.componentPropertyReferences) == null ? void 0 : _a.characters;
+    let inInstance = false;
+    for (let owner = layer.parent; owner && owner.type !== "PAGE"; owner = owner.parent) {
+      if (owner.type !== "INSTANCE") continue;
+      inInstance = true;
+      if (property && ((_c = (_b = owner.componentProperties) == null ? void 0 : _b[property]) == null ? void 0 : _c.type) === "TEXT") return true;
+    }
+    return !inInstance;
+  }
+  function readableFee(node) {
+    var _a;
+    const style = node.style;
+    const fg = luminance(style == null ? void 0 : style.text_color);
+    const bg = luminance(style == null ? void 0 : style.background_color);
+    return ((_a = style == null ? void 0 : style.opacity) != null ? _a : 1) >= 0.8 && (style == null ? void 0 : style.font_size_px) >= 12 && fg !== null && bg !== null && (Math.max(fg, bg) + 0.05) / (Math.min(fg, bg) + 0.05) >= 4.5;
+  }
+  function replacePrice(layer, firstAmount, finalAmount) {
+    var _a, _b;
+    const match = layer.characters.match(numericPrice);
+    if (!match || Number(match[2].replace(/,/g, "")) !== firstAmount || !Number.isFinite(layer.fontSize) || typeof ((_a = layer.fontName) == null ? void 0 : _a.family) !== "string" || layer.textTruncation === "ENDING" || /[\r\n]/.test(layer.characters))
+      return null;
+    const [, prefix, digits, suffix] = match;
+    const newDigits = digits.includes(",") ? won(finalAmount).slice(0, -1) : String(finalAmount);
+    const tabular = ((_b = layer.openTypeFeatures) == null ? void 0 : _b.TNUM) === true || /\b(?:mono|monospace|courier|consolas)\b/i.test(layer.fontName.family);
+    if (!tabular || digits.replace(/\d/g, "0") !== newDigits.replace(/\d/g, "0")) return null;
+    return prefix + newDigits + suffix;
+  }
+  async function editablePriceCopy(finding2, journey, api) {
+    var _a;
+    if ((finding2 == null ? void 0 : finding2.pattern) !== "drip_pricing" || finding2.status !== "risk_signal" || ((_a = journey.warnings) == null ? void 0 : _a.length))
+      return null;
+    const { first, fee, firstAmount, finalAmount } = finding2.pricing || {};
+    if (!first || !(fee == null ? void 0 : fee.label) || !Number.isSafeInteger(firstAmount) || !Number.isSafeInteger(finalAmount) || fee.amount <= 0 || firstAmount + fee.amount !== finalAmount) return null;
+    const state = journey.states.find((item) => item.state_id === first.state_id);
+    const price = state == null ? void 0 : state.nodes.find((item) => item.node_id === first.node_id);
+    if ((price == null ? void 0 : price.role) !== "text") return null;
+    const owner = price.control_node_id || price.parent_id;
+    const existing = state.nodes.filter((node) => {
+      var _a2, _b;
+      return node.node_id !== price.node_id && node.role === "text" && (node.control_node_id || node.parent_id) === owner && ((_b = (_a2 = node.text.match(feeText)) == null ? void 0 : _a2[0]) == null ? void 0 : _b.replace(/\s/g, "")) === fee.label.replace(/\s/g, "") && money(node) === fee.amount && included.test(node.text) && !uncertainFee.test(node.text) && !separateFee.test(node.text) && readableFee(node);
+    });
+    if (!owner || existing.length !== 1) return null;
+    const pageId = api.currentPage.id;
+    try {
+      const [layer, feeLayer] = await Promise.all([first.node_id, existing[0].node_id].map((id) => api.getNodeByIdAsync(id)));
+      if (api.currentPage.id !== pageId || !visibleTextOnFrame(layer, state.frame_id, pageId, true) || !visibleTextOnFrame(feeLayer, state.frame_id, pageId) || !editableCharacters(layer) || feeLayer.characters.trim() !== existing[0].text.trim()) return null;
+      const after = replacePrice(layer, firstAmount, finalAmount);
+      if (!after) return null;
+      return {
+        before: layer.characters.trim(),
+        after: after.trim(),
+        detail: "같은 화면에 이미 표시된 ‘" + feeLayer.characters.trim() + "’과 첫 가격을 맞춥니다.",
+        nodeId: layer.id,
+        stateId: first.state_id
+      };
+    } catch (e) {
+      return null;
+    }
+  }
+
   // src/shipping.js
   var optionRoles = /* @__PURE__ */ new Set(["radio", "checkbox", "toggle"]);
   var fastLabel = /빠른\s*배송/;
@@ -1084,8 +1196,8 @@
     return matches.length === 1 ? matches[0] : null;
   }
   function reviewTotal(state) {
-    const label = state && only(joinPriceRows(state).nodes, (node) => totalText.test(node.text) && money(node) !== null);
-    const amount = label ? money(label) : null;
+    const label2 = state && only(joinPriceRows(state).nodes, (node) => totalText.test(node.text) && money(node) !== null);
+    const amount = label2 ? money(label2) : null;
     return Number.isSafeInteger(amount) ? amount : null;
   }
   function readShippingScenario(journey, pageId) {
@@ -1218,7 +1330,8 @@
           var _b = _a, { spec } = _b, column = __objRest(_b, ["spec"]);
           return column;
         });
-        entry.result = __spreadProps(__spreadValues({ rootId, referenceFrameId: entry.referenceFrameId }, shippingQuote(original == null ? void 0 : original.shipping)), { columns });
+        const thumbnails = await renderReviewThumbnails(api, columns);
+        entry.result = __spreadProps(__spreadValues({ rootId, referenceFrameId: entry.referenceFrameId }, shippingQuote(original == null ? void 0 : original.shipping)), { columns, thumbnails });
         if (context().generation === generation) showExisting(rootId);
       } catch (error) {
         console.error("FairFlow shipping comparison", error);
@@ -1432,7 +1545,8 @@
             steps: (spec == null ? void 0 : spec.steps) || []
           }));
         }
-        const comparison = { rootId, referenceFrameId: entry.referenceFrameId, columns };
+        const thumbnails = await renderReviewThumbnails(api, columns);
+        const comparison = { rootId, referenceFrameId: entry.referenceFrameId, columns, thumbnails };
         entry.result = comparison;
         if (context().generation === generation) post("proposal-comparison", { kind, rootId, comparison });
       } catch (error) {
@@ -1464,6 +1578,142 @@
     return { update, focus, showExisting, get busy() {
       return busy;
     } };
+  }
+
+  // src/review-content.js
+  var lawUrl = "https://www.law.go.kr/LSW/lsLinkCommonInfo.do?chrClsCd=010202&lsJoLnkSeq=1031806317";
+  function law(item, criterion, connection) {
+    return { citation: "전자상거래법 제21조의2 제1항 제" + item + "호", criterion, connection, url: lawUrl };
+  }
+  function label(finding2, index) {
+    var _a, _b, _c;
+    const value = (_c = (_b = (_a = finding2.evidence) == null ? void 0 : _a[index]) == null ? void 0 : _b.label) == null ? void 0 : _c.replace(/^[☐☑☒✓✔]\s*/u, "").trim();
+    return value && value !== "프레임 보기" ? value : "";
+  }
+  function preselectionContent(finding2) {
+    const option = label(finding2, 0) || "추가 유료 옵션";
+    return {
+      headline: "유료 옵션이 미리 선택되어 있습니다",
+      explanation: "‘" + option + "’ 항목이 처음부터 선택되어 있습니다. 이대로 진행하면 추가 서비스에 동의한 상태로 보일 수 있습니다.",
+      rule: law(
+        2,
+        "다른 상품이나 서비스를 신청할지 묻는 항목에서, 소비자가 직접 고르기 전에 신청 의사를 표시해 신청을 유도하면 안 됩니다.",
+        "이 화면에서는 사용자가 직접 고르기 전에 유료 옵션이 선택되어 있습니다."
+      ),
+      alternatives: [
+        {
+          kind: "design",
+          title: "처음에는 선택 해제",
+          visual: "checkbox",
+          description: "유료 옵션을 해제하고, 사용자가 고를 때만 요금을 합계에 더하세요.",
+          before: "처음부터 선택",
+          after: "직접 고르면 적용",
+          detail: option
+        },
+        {
+          kind: "design",
+          title: "옵션과 요금을 나란히",
+          visual: "checkbox",
+          description: "기본 옵션과 유료 옵션을 한곳에 두고 추가 요금을 옵션 옆에 표시하세요. 유료 옵션은 해제된 상태로 시작하세요.",
+          after: "기본 옵션 / 추가 유료 옵션",
+          detail: option
+        }
+      ]
+    };
+  }
+  function hierarchyContent(finding2) {
+    const promoted = label(finding2, 0) || "강조된 선택지";
+    const alternative = label(finding2, 1) || "다른 선택지";
+    return {
+      headline: "다른 선택지가 비활성처럼 보입니다",
+      explanation: "‘" + alternative + "’도 선택할 수 있지만 ‘" + promoted + "’보다 작고 흐려 놓치기 쉽습니다.",
+      rule: law(
+        3,
+        "선택지의 크기·모양·색에 큰 차이를 두어 특정 선택만 가능하거나 꼭 골라야 한다고 오해할 수 있는 경우를 다룹니다.",
+        "누를 수 있는 선택지가 비활성처럼 보이면 강조된 선택만 가능하다고 오해할 수 있습니다."
+      ),
+      alternatives: [
+        {
+          kind: "design",
+          title: "다른 버튼의 가독성 높이기",
+          visual: "buttons",
+          description: "다른 버튼의 글자와 버튼 영역을 키우고 배경과의 대비를 높이세요. 두 버튼을 각각 원래 목적지로 연결하세요.",
+          before: "작고 흐린 버튼",
+          after: "읽기 쉬운 버튼",
+          detail: alternative
+        },
+        {
+          kind: "design",
+          title: "두 선택을 한곳에 배치",
+          visual: "buttons",
+          description: "두 버튼을 같은 영역에 배치하고, 이름과 선택 결과를 함께 보여 주세요.",
+          after: promoted + " / " + alternative
+        }
+      ]
+    };
+  }
+  function editableCopy(copyEdit) {
+    const fields = Array.isArray(copyEdit == null ? void 0 : copyEdit.fields) ? copyEdit.fields : [copyEdit];
+    const changes = fields.filter((field) => typeof (field == null ? void 0 : field.before) === "string" && typeof field.after === "string" && field.after.trim() && field.before.trim() !== field.after.trim());
+    if (!changes.length || changes.length !== fields.length) return null;
+    return {
+      kind: "copy",
+      title: "기존 가격 문구 고치기",
+      description: changes.length === 1 && changes[0].detail ? changes[0].detail : "첫 화면의 문구를 아래와 같이 바꾸세요.",
+      before: changes.map((field) => field.before).join("\n"),
+      after: changes.map((field) => field.after).join("\n"),
+      changes
+    };
+  }
+  function pricingContent(finding2) {
+    var _a, _b;
+    const pricing = finding2.pricing;
+    const feeAmount = (_a = pricing == null ? void 0 : pricing.fee) == null ? void 0 : _a.amount;
+    const { firstAmount, finalAmount } = pricing || {};
+    const known = [firstAmount, finalAmount, feeAmount].every(Number.isSafeInteger) && firstAmount >= 0 && feeAmount > 0 && firstAmount + feeAmount === finalAmount;
+    const fee = "필수 " + (((_b = pricing == null ? void 0 : pricing.fee) == null ? void 0 : _b.label) || "비용");
+    const copy = known && editableCopy(finding2.copyEdit);
+    return {
+      headline: "첫 가격에 필수 비용이 빠져 있습니다",
+      explanation: known ? "첫 가격은 " + won(firstAmount) + "입니다. 주문 화면에서 " + fee + " " + won(feeAmount) + "이 더해져 총 " + won(finalAmount) + "이 됩니다." : finding2.reason,
+      rule: law(
+        1,
+        "상품의 첫 가격 안내 화면에는 구매에 꼭 드는 비용을 합친 총액을 표시해야 합니다. 정당한 이유로 총액 표시가 어렵고 정해진 방법으로 그 이유를 알린 경우에는 예외가 있습니다.",
+        "이 검사에서는 주문 화면에서 확인한 고정 필수 비용이 첫 가격에 포함되는지 비교했습니다."
+      ),
+      alternatives: copy ? [copy] : [
+        {
+          kind: "design",
+          title: "첫 가격 옆에 포함 비용 표시",
+          visual: "price",
+          description: "첫 가격을 필수 비용까지 합친 금액으로 바꾸고, 바로 옆에 포함된 비용을 적으세요.",
+          before: known ? won(firstAmount) : "상품 가격",
+          after: known ? won(finalAmount) : "필수 비용을 포함한 총액",
+          detail: known ? fee + " " + won(feeAmount) + " 포함" : fee + " 포함"
+        },
+        {
+          kind: "design",
+          title: "가격 내역을 한곳에 표시",
+          visual: "price",
+          description: "상품 가격, 필수 비용, 총액을 첫 화면부터 같은 영역에 함께 보여 주세요.",
+          after: known ? "총 " + won(finalAmount) : "총액",
+          detail: known ? "상품 " + won(firstAmount) + " · " + fee + " " + won(feeAmount) : "상품 가격 · " + fee
+        }
+      ]
+    };
+  }
+  function reviewContent(finding2) {
+    if ((finding2 == null ? void 0 : finding2.status) !== "risk_signal") return null;
+    switch (finding2.pattern) {
+      case "paid_option_preselection":
+        return preselectionContent(finding2);
+      case "misleading_visual_hierarchy":
+        return hierarchyContent(finding2);
+      case "drip_pricing":
+        return pricingContent(finding2);
+      default:
+        return null;
+    }
   }
 
   // src/controller.js
@@ -1564,7 +1814,7 @@
         case "ready":
           ready = true;
           postSelection();
-          return scan(true);
+          break;
         case "scan-selection":
           return scan(true);
         case "scan":
@@ -1577,6 +1827,9 @@
           break;
         case "focus":
           return focus(message);
+        case "review-law":
+          api.openExternal(lawUrl);
+          break;
         case "shipping-create":
         case "shipping-rescan":
           if (!(proposals == null ? void 0 : proposals.busy)) return shipping == null ? void 0 : shipping.update(message.type === "shipping-create");
@@ -1606,7 +1859,6 @@
     api.on("selectionchange", () => {
       if (!ready) return;
       postSelection();
-      if (!rootId && selectedFrame()) return scan(true);
     });
   }
 
@@ -1766,7 +2018,7 @@
   async function createShippingDesigns(api, spec) {
     const page = api.currentPage;
     if (page.id !== spec.pageId) throw Error("검사한 페이지로 돌아가서 다시 실행하세요.");
-    const keys = [
+    const keys2 = [
       "shippingFrameId",
       "fastReviewId",
       "basicReviewId",
@@ -1776,7 +2028,7 @@
       "basicSelectionId",
       "continueId"
     ];
-    const nodes = await Promise.all(keys.map((key) => api.getNodeByIdAsync(spec[key])));
+    const nodes = await Promise.all(keys2.map((key) => api.getNodeByIdAsync(spec[key])));
     if (nodes.some((n) => {
       var _a;
       return !n || n.removed || ((_a = pageOf(n)) == null ? void 0 : _a.id) !== page.id;
@@ -1791,10 +2043,10 @@
     const paths = [paid, basic, paidSelection, basicSelection, next].map((node) => pathInFrame(node, shipping));
     const existing = page.children.slice(), existingNames = new Set(existing.map((n) => n.name));
     const baseLabels = ["원본 · 생성 시점", "최소 수정안", "비교 배치안"];
-    const nameSet = (number2) => baseLabels.map((label) => shipping.name + " · " + label + (number2 > 1 ? " " + number2 : ""));
+    const nameSet = (number2) => baseLabels.map((label2) => shipping.name + " · " + label2 + (number2 > 1 ? " " + number2 : ""));
     let number = 1, labels = nameSet(number);
     while (labels.some(
-      (label) => [label, label + " · 빠른배송 확인", label + " · 일반배송 확인"].some((name) => existingNames.has(name))
+      (label2) => [label2, label2 + " · 빠른배송 확인", label2 + " · 일반배송 확인"].some((name) => existingNames.has(name))
     ))
       labels = nameSet(++number);
     const originals = [shipping, fastReview, basicReview], rects = originals.map(canvasBounds);
@@ -1826,12 +2078,12 @@
       const results = { referenceFrameId: reference.id };
       const starts = [];
       for (const [index, kind] of ["minimal", "layout"].entries()) {
-        const left = x + (index + 1) * column, label = labels[index + 1];
-        const frame = copy(shipping, label, left, y);
-        const fast = copy(fastReview, label + " · 빠른배송 확인", left, y + rects[0].height + GUTTER2);
+        const left = x + (index + 1) * column, label2 = labels[index + 1];
+        const frame = copy(shipping, label2, left, y);
+        const fast = copy(fastReview, label2 + " · 빠른배송 확인", left, y + rects[0].height + GUTTER2);
         const normal = copy(
           basicReview,
-          label + " · 일반배송 확인",
+          label2 + " · 일반배송 확인",
           left,
           y + rects[0].height + rects[1].height + 2 * GUTTER2
         );
@@ -1851,7 +2103,7 @@
           normal.id
         );
         if (kind === "layout") compareOptions(api, paidRow, basicRow, owned);
-        starts.push({ nodeId: frame.id, name: label });
+        starts.push({ nodeId: frame.id, name: label2 });
         results[kind] = { frameId: frame.id, fastReviewId: fast.id, basicReviewId: normal.id };
       }
       if (api.currentPage.id !== page.id) throw Error("디자인을 만드는 동안 페이지가 변경되었습니다.");
@@ -1950,19 +2202,19 @@
   }
   var isAuto = (node) => Boolean((node == null ? void 0 : node.layoutMode) && node.layoutMode !== "NONE");
   var overlaps = (a, b) => a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
-  var contains = (outer, inner) => outer.x <= inner.x && outer.y <= inner.y && outer.x + outer.width >= inner.x + inner.width && outer.y + outer.height >= inner.y + inner.height;
-  function blockSize(basic, paid, label) {
+  var contains2 = (outer, inner) => outer.x <= inner.x && outer.y <= inner.y && outer.x + outer.width >= inner.x + inner.width && outer.y + outer.height >= inner.y + inner.height;
+  function blockSize(basic, paid, label2) {
     const target = {
       x: basic.x,
       y: basic.y,
-      width: Math.max(basic.width, paid.width, label.width + Math.max(10, label.x * 2)),
-      height: Math.max(basic.height, paid.height, label.height + 8)
+      width: Math.max(basic.width, paid.width, label2.width + Math.max(10, label2.x * 2)),
+      height: Math.max(basic.height, paid.height, label2.height + 8)
     };
     const parent = basic.parent;
     if (isAuto(parent) && basic.layoutPositioning !== "ABSOLUTE") return target;
     const before = { x: basic.x, y: basic.y, width: basic.width, height: basic.height };
     for (const sibling of parent.children) {
-      if (sibling.id === basic.id || sibling.visible === false || !overlaps(target, sibling) || contains(sibling, target) || overlaps(before, sibling)) continue;
+      if (sibling.id === basic.id || sibling.visible === false || !overlaps(target, sibling) || contains2(sibling, target) || overlaps(before, sibling)) continue;
       const roomX = sibling.x - target.x, roomY = sibling.y - target.y;
       if (roomY >= before.height) target.height = Math.min(target.height, roomY);
       else if (roomX >= before.width) target.width = Math.min(target.width, roomX);
@@ -1971,20 +2223,20 @@
       target.width = Math.min(target.width, parent.width - target.x);
       target.height = Math.min(target.height, parent.height - target.y);
     }
-    if (target.width < label.width + 8 || target.height < label.height + 4 || target.width * target.height < paid.width * paid.height * 0.45)
+    if (target.width < label2.width + 8 || target.height < label2.height + 4 || target.width * target.height < paid.width * paid.height * 0.45)
       throw Error("기존 배치에 기본 선택 버튼을 넓힐 공간이 부족합니다.");
     return target;
   }
   async function adjustBasic(api, paid, basic, strong, weak) {
     var _a, _b;
     const paidLabel = textLabel(paid, plainText(strong.text));
-    const label = textLabel(basic, plainText(weak.text));
-    if (label.hasMissingFont || !label.fontName || typeof label.fontName !== "object" || typeof paidLabel.fontSize !== "number" || typeof label.fontSize !== "number")
+    const label2 = textLabel(basic, plainText(weak.text));
+    if (label2.hasMissingFont || !label2.fontName || typeof label2.fontName !== "object" || typeof paidLabel.fontSize !== "number" || typeof label2.fontSize !== "number")
       throw Error("기본 선택 문구의 편집 가능한 단일 글꼴과 크기가 필요합니다.");
-    await api.loadFontAsync(label.fontName);
+    await api.loadFontAsync(label2.fontName);
     const strongStyle = strong.style || {}, weakStyle = weak.style || {};
     const originalBg = weakStyle.background_color;
-    const palette = [paid, paidLabel, basic, label].flatMap((node) => Array.isArray(node.fills) ? node.fills : []);
+    const palette = [paid, paidLabel, basic, label2].flatMap((node) => Array.isArray(node.fills) ? node.fills : []);
     let foreground = [weakStyle.text_color, strongStyle.background_color, strongStyle.text_color].find((color) => contrast(color, originalBg) >= 4.5);
     if (!foreground) {
       foreground = strongStyle.text_color;
@@ -1992,16 +2244,16 @@
         throw Error("두 버튼에서 읽기 쉬운 기존 글자색과 배경색을 찾을 수 없습니다.");
       applyColor(basic, strongStyle.background_color, palette);
     }
-    if (foreground !== weakStyle.text_color) applyColor(label, foreground, palette);
+    if (foreground !== weakStyle.text_color) applyColor(label2, foreground, palette);
     basic.opacity = 1;
-    label.opacity = 1;
-    label.fontSize = Math.max(label.fontSize, paidLabel.fontSize);
-    if (((_a = label.lineHeight) == null ? void 0 : _a.unit) === "PIXELS" && label.lineHeight.value < label.fontSize)
-      label.lineHeight = { unit: "AUTO" };
-    const size = blockSize(basic, paid, label);
+    label2.opacity = 1;
+    label2.fontSize = Math.max(label2.fontSize, paidLabel.fontSize);
+    if (((_a = label2.lineHeight) == null ? void 0 : _a.unit) === "PIXELS" && label2.lineHeight.value < label2.fontSize)
+      label2.lineHeight = { unit: "AUTO" };
+    const size = blockSize(basic, paid, label2);
     basic.resize(size.width, size.height);
-    if (basic.type === "FRAME" && !isAuto(basic) && ((_b = label.parent) == null ? void 0 : _b.id) === basic.id)
-      label.y = (basic.height - label.height) / 2;
+    if (basic.type === "FRAME" && !isAuto(basic) && ((_b = label2.parent) == null ? void 0 : _b.id) === basic.id)
+      label2.y = (basic.height - label2.height) / 2;
   }
   function alignChoices(api, paid, basic, own) {
     var _a;
@@ -2086,8 +2338,8 @@
     if (!path) return null;
     const feeNodes = (state) => state.nodes.filter((node) => {
       var _a2;
-      const label = (_a2 = node.text.match(feeText)) == null ? void 0 : _a2[0];
-      return label && normalized(label) === normalized(fee.label);
+      const label2 = (_a2 = node.text.match(feeText)) == null ? void 0 : _a2[0];
+      return label2 && normalized(label2) === normalized(fee.label);
     });
     if (path.some((state) => feeNodes(state).some((node) => {
       const amount = money(node);
@@ -2095,7 +2347,7 @@
     }))) return null;
     const screens = path.map((state, index) => {
       var _a2;
-      const label = state.name || (index === 0 ? "첫 가격" : "단계 " + (index + 1));
+      const label2 = state.name || (index === 0 ? "첫 가격" : "단계 " + (index + 1));
       const nodes = feeNodes(state);
       const feeShown = nodes.some((node) => money(node) === fee.amount);
       const baseShown = state.nodes.some((node) => /^상품\s*(?:가격|금액|소계)/.test(node.text) && money(node) === baseAmount);
@@ -2106,7 +2358,7 @@
       const feeDetail = feeShown ? "필수 비용 " + won(fee.amount) : "필수 비용 금액 미표시";
       return {
         frameId: state.frame_id,
-        label,
+        label: label2,
         feeShown,
         baseShown,
         totalShown,
@@ -2129,7 +2381,7 @@
       frameIds: screens.map((screen) => screen.frameId),
       status,
       summary: "필수 비용 " + won(fee.amount) + " 최초 표시: " + firstFee.label + " · 포함 총액 " + won(finalAmount) + " 최초 표시: " + firstTotal.label,
-      steps: screens.map(({ frameId, label, detail }, index) => ({ key: "stage-" + index, label, detail, frameId })),
+      steps: screens.map(({ frameId, label: label2, detail }, index) => ({ key: "stage-" + index, label: label2, detail, frameId })),
       screens,
       pricing
     };
@@ -2231,11 +2483,11 @@
       block.paddingLeft = block.paddingRight = layout ? 6 : 0;
       block.paddingTop = block.paddingBottom = layout ? 4 : 0;
       block.cornerRadius = layout ? 6 : 0;
-      for (const { label, text, style } of rows) {
+      for (const { label: label2, text, style } of rows) {
         await loadFont(api, style);
         const line = api.createText();
         block.appendChild(line);
-        line.name = label;
+        line.name = label2;
         line.fontName = style.fontName;
         if (typeof style.fontSize === "number") line.fontSize = style.fontSize;
         if (style.textStyleId && typeof style.textStyleId === "string")
@@ -2277,10 +2529,10 @@
           rows.push({ label: "상품 소계", text: "상품 소계 " + won(pricing.baseAmount), style: baseStyle });
         }
         if (!screen.feeShown) {
-          const label = "필수 고정 " + pricing.fee.label + " " + won(pricing.fee.amount) + " 포함";
+          const label2 = "필수 고정 " + pricing.fee.label + " " + won(pricing.fee.amount) + " 포함";
           const card = screen.cardId ? await getNode(screen.frameId, screen.cardId) : price == null ? void 0 : price.parent;
-          if (!(kind === "minimal" && card && await reuseFeeCopy(api, card, price, pricing.fee, label))) {
-            rows.push({ label: "포함 필수 비용", text: label, style: feeStyle });
+          if (!(kind === "minimal" && card && await reuseFeeCopy(api, card, price, pricing.fee, label2))) {
+            rows.push({ label: "포함 필수 비용", text: label2, style: feeStyle });
           }
         }
         if (!price && !screen.totalShown) {
@@ -2300,18 +2552,25 @@
     for (const state of journey.states) {
       const labels = /* @__PURE__ */ new Map();
       for (const node of state.nodes) {
-        const label = (node.text || node.name || node.role || "레이어").replace(/\s+/g, " ").trim().slice(0, 60);
-        labels.set(node.node_id, label);
+        const label2 = (node.text || node.name || node.role || "레이어").replace(/\s+/g, " ").trim().slice(0, 60);
+        labels.set(node.node_id, label2);
       }
       layerLabels.set(state.state_id, labels);
     }
-    const findings = analyzeJourney(journey).map((finding2) => __spreadProps(__spreadValues({}, finding2), {
-      evidence: finding2.evidence.map((item) => {
-        var _a;
-        return __spreadProps(__spreadValues({}, item), {
-          label: ((_a = layerLabels.get(item.state_id)) == null ? void 0 : _a.get(item.node_id)) || "프레임 보기"
-        });
-      })
+    const findings = await Promise.all(analyzeJourney(journey).map(async (finding2) => {
+      const result = __spreadProps(__spreadValues({}, finding2), {
+        evidence: finding2.evidence.map((item) => {
+          var _a;
+          return __spreadProps(__spreadValues({}, item), {
+            label: ((_a = layerLabels.get(item.state_id)) == null ? void 0 : _a.get(item.node_id)) || "프레임 보기"
+          });
+        })
+      });
+      if (finding2.pattern === "drip_pricing" && finding2.status === "risk_signal") {
+        result.copyEdit = await editablePriceCopy(finding2, journey, figma);
+      }
+      const review = reviewContent(result);
+      return review ? __spreadProps(__spreadValues({}, result), { review }) : result;
     }));
     return {
       frameName: frame.name,

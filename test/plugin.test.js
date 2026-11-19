@@ -75,6 +75,9 @@ test("manifest entry follows a price journey, focuses its layer and sees an edit
   ]);
   const host = runPlugin([source, target], false);
   await host.send({type: "ready"});
+  assert.deepEqual(host.messages.map(message => message.type), ["selection"]);
+  assert.equal(host.messages[0].frameId, source.id);
+  await host.send({type: "scan-selection"});
   const priceFinding = () => host.messages.at(-1).findings.find(f => f.pattern === "drip_pricing");
   assert.equal(host.messages.at(-1).canConfirmStart, true);
   assert.equal(priceFinding().status, "needs_context");
@@ -94,6 +97,7 @@ test("manifest entry reads paid radio state from a component instance", async ()
   const first = frame("entry", "상품", [button("next", "배송 옵션 보기", "delivery")]);
   const host = runPlugin([first, frame("delivery", "배송 옵션", [radio])]);
   await host.send({type: "ready"});
+  await host.send({type: "scan-selection"});
   const finding = host.messages.at(-1).findings.find(f => f.pattern === "paid_option_preselection");
   assert.equal(finding.status, "risk_signal");
   await focusAndRecheck(host, finding, "express", () => {
@@ -114,6 +118,7 @@ test("manifest entry compares two working subscription choices and returns both 
     frame("plus", "추가 가입", [text("p", "월 12,900원")]),
     frame("standard", "기본 가입", [text("s", "월 9,900원")])]);
   await host.send({type: "ready"});
+  await host.send({type: "scan-selection"});
   const result = host.messages.at(-1);
   assert.equal(result.transitionCount, 2);
   const finding = result.findings.find(f => f.pattern === "misleading_visual_hierarchy");

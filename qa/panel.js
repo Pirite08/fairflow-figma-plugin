@@ -8,6 +8,7 @@
       evidence: ["fast"],
       frames: 3,
       links: 3,
+      articleItem: 2,
     },
     {
       key: "hierarchy",
@@ -16,6 +17,7 @@
       evidence: ["paid", "basic"],
       frames: 3,
       links: 2,
+      articleItem: 3,
     },
     {
       key: "price",
@@ -24,6 +26,7 @@
       evidence: ["first", "card", "fee", "total"],
       frames: 2,
       links: 1,
+      articleItem: 1,
     },
   ];
   const query = (selector) => document.querySelector(selector);
@@ -35,6 +38,8 @@
     active = false;
   let lastResult = null,
     resultCount = 0,
+    scanCount = 0,
+    lastSelection = null,
     lastComparison = null,
     comparisonCount = 0,
     lastShippingPreview = null,
@@ -48,6 +53,8 @@
       lastResult = message;
       resultCount++;
     }
+    if (message.type === "loading") scanCount++;
+    if (message.type === "selection") lastSelection = message;
     if (message.type === "shipping-comparison") {
       lastComparison = message.comparison;
       comparisonCount++;
@@ -132,7 +139,7 @@
     );
     return lastResult;
   }
-  function cardFor(spec, expected) {
+  function riskCardFor(spec) {
     const cards = Array.from(document.querySelectorAll(".finding")).filter(
       (n) => n.querySelector(".pattern")?.textContent === spec.label,
     );
@@ -142,23 +149,18 @@
     );
     const card = cards[0];
     check(
-      card.dataset.status === expected &&
-        card.querySelector(".badge")?.textContent ===
-          (expected === "risk_signal" ? "위험 신호" : "신호 없음"),
+      card.dataset.status === "risk_signal" &&
+        card.querySelector(".badge")?.textContent === "위험 신호",
       spec.label +
         " 표시 상태: " +
         card.dataset.status +
-        " (예상 " +
-        expected +
-        ")",
-    );
-    check(
-      card.querySelector(".suggestion")?.textContent.trim(),
-      "수정안이 비었습니다.",
+        " (예상 risk_signal)",
     );
     return card;
   }
   async function runOne(spec, log) {
+    const beforeSelection = scanCount;
+    const previousResult = resultCount;
     const start = await command("risk", spec.key),
       board = start.board,
       name = start.rootName;
@@ -168,6 +170,11 @@
         start.view.starts.some((p) => p.nodeId === board.start),
       "시작점 등록 또는 선택 실패",
     );
+    await until(() => lastSelection?.frameId === board.start, "선택한 프레임이 패널에 반영되지 않았습니다.");
+    await command("inspect", spec.key);
+    check(scanCount === beforeSelection && resultCount === previousResult,
+      "프레임을 선택만 했을 때 검사가 자동으로 시작되었습니다.");
+    log.manualScan = true;
     const result = await scan("#scan-selection", name);
     const risks = result.findings.filter((f) => f.status === "risk_signal");
     check(
@@ -180,9 +187,18 @@
       log.frames === spec.frames && log.links === spec.links,
       "실제 프레임·연결 수 불일치: " + log.frames + "/" + log.links,
     );
-    const card = cardFor(spec, "risk_signal");
+    const card = riskCardFor(spec);
     log.before = card.dataset.status;
-    if (!card.open) card.querySelector("summary").click();
+    if (card.tagName === "DETAILS" && !card.open) card.querySelector("summary").click();
+    const citation = card.querySelector(".review-rule .review-citation")?.textContent.trim();
+    check(citation?.includes("제21조의2 제1항 제" + spec.articleItem + "호"),
+      "해당 위험 유형의 전자상거래법 조항이 결과 카드에 표시되지 않았습니다.");
+    const alternatives = Array.from(card.querySelectorAll(".review-alternative"));
+    check(alternatives.length >= 1 && alternatives.length <= 3 &&
+      alternatives.every(alternative => alternative.textContent.trim()),
+    "결과 카드에서 1~3개의 대안을 확인하지 못했습니다.");
+    log.legalBasis = citation;
+    log.alternativeCount = alternatives.length;
     const finding = result.findings.find((f) => f.pattern === spec.pattern);
     const refs = finding.evidence,
       buttons = Array.from(card.querySelectorAll(".layer"));
@@ -234,7 +250,10 @@
       after.findings.every((f) => f.status !== "risk_signal"),
       "수정 후 다른 위험 신호가 남았습니다.",
     );
-    log.after = cardFor(spec, "signal_absent").dataset.status;
+    const cleared = after.findings.find(f => f.pattern === spec.pattern && f.status === "signal_absent");
+    check(cleared && !query('.finding[data-status="risk_signal"]'),
+      "수정한 유형의 신호 해소가 패널에 반영되지 않았습니다.");
+    log.after = cleared.status;
     const view = (await command("inspect", spec.key)).view;
     check(
       view.selected[0]?.id === pinnedEvidence,
@@ -244,12 +263,20 @@
     log.passed = true;
   }
   const shippingRow = (key) => query('[data-shipping-key="' + key + '"]');
-  function openAdvancedTools() {
+  function openAdvancedTools(kind) {
     const tools = query(".advanced-tools");
-    if (tools && !tools.open) tools.querySelector("summary")?.click();
+    if (!tools || tools.hidden) {
+      const showDesign = query('[data-review-design="' + kind + '"]');
+      if (showDesign && !showDesign.disabled) {
+        showDesign.click();
+        return true;
+      }
+    }
+    if (tools && !tools.hidden && !tools.open) tools.querySelector("summary")?.click();
+    return false;
   }
   async function compareShipping(selector) {
-    openAdvancedTools();
+    openAdvancedTools("shipping");
     const button = await until(() => {
       const control = query(selector);
       return control && !control.disabled && control;
@@ -266,10 +293,16 @@
     const { board, rootName } = await command("risk", "shipping");
     await scan("#scan-selection", rootName);
     log.diagnostics = (await command("read-journey", "shipping")).capture;
-    cardFor(cases[0], "risk_signal");
-    openAdvancedTools();
+    riskCardFor(cases[0]);
     const original = { key: "original", frameId: board.start, fastReviewId: board.review, basicReviewId: board.freeReview };
     const originalBefore = (await command("inspect-shipping", "shipping", null, [original])).shipping[0];
+    const before = comparisonCount;
+    if (openAdvancedTools("shipping")) {
+      log.action = "shipping-create";
+      const comparison = await until(() => comparisonCount > before && lastComparison,
+        "위험 카드에서 배송 비교 결과가 표시되지 않았습니다.");
+      return { board, original, originalBefore, comparison };
+    }
     const action = await until(
       () => query("#shipping-create")?.id || query("#shipping-rescan")?.id,
       "배송 제안 작업을 열 수 없습니다.",
@@ -384,7 +417,7 @@
     return data.getUint32(16) > 0 && data.getUint32(20) > 0;
   }
   async function clickReady(selector, description = selector) {
-    openAdvancedTools();
+    openAdvancedTools("shipping");
     const button = await until(() => {
       const control = query(selector);
       return control && !control.disabled && !control.hidden && control;
@@ -531,15 +564,17 @@
     log.passed = true;
   }
   async function compareProposal(kind, action) {
-    openAdvancedTools();
-    const selector = "#" + kind + "-" + action;
-    const control = await until(() => {
-      const button = query(selector);
-      return button && !button.disabled && button;
-    }, "디자인 제안 버튼을 찾지 못했습니다: " + selector);
     const before = proposalComparisons.get(kind);
     lastError = null;
-    control.click();
+    const triggered = openAdvancedTools(kind);
+    const selector = "#" + kind + "-" + action;
+    if (action !== "create" || !triggered) {
+      const control = await until(() => {
+        const button = query(selector);
+        return button && !button.disabled && button;
+      }, "디자인 제안 버튼을 찾지 못했습니다: " + selector);
+      control.click();
+    }
     return until(() => {
       const next = proposalComparisons.get(kind);
       return next !== before && next;
@@ -549,7 +584,7 @@
   async function runProposal(kind, log) {
     const { board, rootName } = await command("start-proposal", kind);
     const scanResult = await scan("#scan-selection", rootName);
-    cardFor(cases.find(item => item.key === kind), "risk_signal");
+    riskCardFor(cases.find(item => item.key === kind));
     log.available = scanResult.proposals?.[kind];
     const originals = [{ key: "original", frameId: board.start }];
     const before = (await command("inspect-proposals", kind, null, originals)).proposalData.proposals[0];
