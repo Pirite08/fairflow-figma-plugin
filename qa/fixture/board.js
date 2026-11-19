@@ -160,8 +160,12 @@ function extraStart(points, id, name) {
 export async function build() {
   const previous = registered();
   if (previous) {
-    const ids = Object.values(previous).flatMap((journey) =>
-      Object.entries(journey).filter(([key]) => key !== "selectedKey").map(([, id]) => id));
+    const ids = [];
+    for (const journey of Object.values(previous)) {
+      for (const [key, id] of Object.entries(journey)) {
+        if (key !== "selectedKey") ids.push(id);
+      }
+    }
     const layers = await Promise.all(ids.map(id => figma.getNodeByIdAsync(id)));
     if (layers.every(node => node && !node.removed)) return;
   }
@@ -368,6 +372,7 @@ export async function build() {
         confirm: go.id,
         fast: fast.id,
         free: free.id,
+        component: master.c.id,
         selectedKey: master.key,
       },
       hierarchy: {
