@@ -71,12 +71,10 @@ function arrangeBoard(existing, source, columns) {
   }
 }
 
-// Clone a source snapshot and two independent prototype journeys. An adapter
-// only edits nodes in its own copies. All created frames are removed on error.
-export async function cloneProposal(api, spec, editVariant) {
+async function openCopySession(api, { pageId, frameId, frameIds }) {
   const page = api.currentPage;
-  if (page.id !== spec.pageId) throw Error("검사한 페이지에서 수정안을 만들어 주세요.");
-  const ids = [...new Set([spec.frameId, ...spec.frameIds])];
+  if (page.id !== pageId) throw Error("검사한 페이지에서 수정안을 만들어 주세요.");
+  const ids = [...new Set([frameId, ...frameIds])];
   const source = await Promise.all(ids.map(id => api.getNodeByIdAsync(id)));
   if (source.some(frame => !frame || frame.removed || frame.type !== "FRAME" || frame.parent?.id !== page.id)) {
     throw Error("수정할 여정의 화면이 모두 같은 페이지의 최상위 프레임이어야 합니다.");
@@ -96,7 +94,31 @@ export async function cloneProposal(api, spec, editVariant) {
     copied.locked = false;
     return copied;
   }
+  function finish(columns, starts) {
+    if (api.currentPage.id !== page.id) throw Error("수정안을 만드는 동안 페이지가 바뀌었습니다.");
+    arrangeBoard(existing, source[0], columns);
+    const generated = new Set(owned.map(node => node.id));
+    page.flowStartingPoints = [...page.flowStartingPoints.filter(point => !generated.has(point.nodeId)), ...starts];
+  }
+  function rollback() {
+    // Removing a generated frame also removes its prototype flow starting point.
+    for (const node of owned.reverse()) if (!node.removed) node.remove();
+  }
+  return { source, copyFrame, finish, rollback, own: node => { owned.push(node); return node; } };
+}
 
+async function copyJourney(source, label, copyFrame) {
+  const copies = source.map(node => copyFrame(node, label));
+  const byId = new Map(), sources = [];
+  for (const [index, node] of source.entries()) indexCopy(node, copies[index], byId, sources);
+  await wireCopies(sources, byId);
+  return { copies, byId };
+}
+
+// Clone a source snapshot and two independent prototype journeys. An adapter
+// only edits nodes in its own copies. All created frames are removed on error.
+export async function cloneProposal(api, spec, editVariant) {
+  const { source, copyFrame, finish, rollback, own } = await openCopySession(api, spec);
   try {
     const reference = copyFrame(source[0], "원본 · 생성 시점");
     const referenceById = new Map(), referenceSources = [];
@@ -106,11 +128,8 @@ export async function cloneProposal(api, spec, editVariant) {
     const columns = [[reference]];
     const starts = [];
     for (const [kind, label] of [["minimal", "최소 수정안"], ["layout", "배치 변경안"]]) {
-      const copies = source.map(node => copyFrame(node, label));
+      const { copies, byId } = await copyJourney(source, label, copyFrame);
       columns.push(copies);
-      const byId = new Map(), sources = [];
-      for (const [index, node] of source.entries()) indexCopy(node, copies[index], byId, sources);
-      await wireCopies(sources, byId);
       const frame = id => byId.get(id);
       const getNode = (sourceFrameId, nodeId) => {
         const node = byId.get(nodeId);
@@ -120,17 +139,28 @@ export async function cloneProposal(api, spec, editVariant) {
         }
         throw Error("수정할 레이어를 복제한 여정에서 찾을 수 없습니다.");
       };
-      await editVariant({ kind, frame, getNode, own: node => { owned.push(node); return node; } });
+      await editVariant({ kind, frame, getNode, own });
       result[kind] = { frameId: copies[0].id };
       starts.push({ nodeId: copies[0].id, name: copies[0].name });
     }
-    if (api.currentPage.id !== page.id) throw Error("수정안을 만드는 동안 페이지가 바뀌었습니다.");
-    arrangeBoard(existing, source[0], columns);
-    const generated = new Set(owned.map(node => node.id));
-    page.flowStartingPoints = [...page.flowStartingPoints.filter(point => !generated.has(point.nodeId)), ...starts];
+    finish(columns, starts);
     return result;
   } catch (error) {
-    for (const node of owned.reverse()) if (!node.removed) node.remove();
+    rollback();
+    throw error;
+  }
+}
+
+export async function cloneAdoptedJourney(api, spec, validate) {
+  const { source, copyFrame, finish, rollback } = await openCopySession(api, spec);
+  try {
+    const { copies, byId } = await copyJourney(source, "채택안", copyFrame);
+    // Validate the copied topology before exposing a new flow starting point.
+    await validate(copies[0], byId);
+    finish([copies], [{ nodeId: copies[0].id, name: copies[0].name }]);
+    return byId;
+  } catch (error) {
+    rollback();
     throw error;
   }
 }

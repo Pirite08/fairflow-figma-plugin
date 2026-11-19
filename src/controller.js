@@ -61,6 +61,7 @@ export function startPanel(api, inspectFrame, makeShippingDesigns, proposalBuild
             : null
         } : {})
       });
+      shipping?.invalidatePreview(frame.id);
       shipping?.showExisting(frame.id);
       proposals?.showExisting(frame.id);
     } catch (error) {
@@ -120,8 +121,16 @@ export function startPanel(api, inspectFrame, makeShippingDesigns, proposalBuild
       case "shipping-rescan":
         if (!proposals?.busy) return shipping?.update(message.type === "shipping-create");
         break;
+      case "shipping-preview":
+        if (!proposals?.busy) return shipping?.preview();
+        break;
+      case "shipping-adopt":
+        if (!proposals?.busy) return shipping?.adopt(message.key);
+        break;
       case "shipping-focus":
       case "shipping-overview":
+      case "shipping-preview-focus":
+      case "shipping-adopt-focus":
         if (!proposals?.busy) return shipping?.focus(message);
         break;
       case "proposal-create":

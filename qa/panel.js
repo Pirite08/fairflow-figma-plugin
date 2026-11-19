@@ -37,6 +37,8 @@
     resultCount = 0,
     lastComparison = null,
     comparisonCount = 0,
+    lastShippingPreview = null,
+    lastAdoptedShipping = null,
     lastError = null;
   const proposalComparisons = new Map();
   window.addEventListener("message", (event) => {
@@ -50,9 +52,11 @@
       lastComparison = message.comparison;
       comparisonCount++;
     }
+    if (message.type === "shipping-preview-result") lastShippingPreview = message;
+    if (message.type === "shipping-adopted") lastAdoptedShipping = message;
     if (message.type === "proposal-comparison")
       proposalComparisons.set(message.kind, message.comparison);
-    if (["error", "notice", "shipping-error", "proposal-error"].includes(message.type))
+    if (["error", "notice", "shipping-error", "shipping-preview-error", "proposal-error"].includes(message.type))
       lastError = message.message;
     if (message.type === "qa-reply" && pending.has(message.token)) {
       const accept = pending.get(message.token);
@@ -90,8 +94,8 @@
   function check(value, msg) {
     if (!value) throw Error(msg);
   }
-  async function until(checkState, description) {
-    const untilTime = Date.now() + 10000;
+  async function until(checkState, description, timeout = 10000) {
+    const untilTime = Date.now() + timeout;
     while (Date.now() < untilTime) {
       const value = await checkState();
       if (value) return value;
@@ -249,7 +253,7 @@
       "배송 비교 결과가 표시되지 않았습니다: " + selector,
     );
   }
-  async function runShipping(log) {
+  async function setupShipping(log) {
     const { board, rootName } = await command("risk", "shipping");
     await scan("#scan-selection", rootName);
     log.diagnostics = (await command("read-journey", "shipping")).capture;
@@ -262,6 +266,10 @@
     );
     const comparison = await compareShipping("#" + action);
     log.action = action;
+    return { board, original, originalBefore, comparison };
+  }
+  async function runShipping(log) {
+    const { board, original, originalBefore, comparison } = await setupShipping(log);
     const { columns, basicFee, fastFee, basicTotal, fastTotal, referenceFrameId } = comparison;
     check(
       sameIds(columns.map((column) => column.key), ["original", "minimal", "layout"]),
@@ -356,6 +364,153 @@
       "배송 재검사 상태가 원본의 위험과 두 수정안의 신호 없음을 보여주지 않습니다.",
     );
     log.after = rescanned.columns.map(({ key, status }) => ({ key, status }));
+    delete log.diagnostics;
+    log.passed = true;
+  }
+  function pngHeader(image) {
+    if (!image?.png?.startsWith("iVBORw0KGgo") || !(image.width > 0 && image.height > 0)) return false;
+    const bytes = Uint8Array.from(atob(image.png.slice(0, 32)), byte => byte.charCodeAt(0));
+    const data = new DataView(bytes.buffer);
+    return data.getUint32(16) > 0 && data.getUint32(20) > 0;
+  }
+  async function clickReady(selector, description = selector) {
+    const button = await until(() => {
+      const control = query(selector);
+      return control && !control.disabled && !control.hidden && control;
+    }, "조작할 버튼을 찾지 못했습니다: " + description);
+    button.click();
+    return button;
+  }
+  async function expectPreviewImage(kind, image) {
+    await until(() => {
+      const rendered = query('[data-preview-image="' + kind + '"]');
+      return rendered?.getAttribute("src") === "data:image/png;base64," + image.png &&
+        rendered.naturalWidth > 0 && rendered.naturalHeight > 0;
+    }, "실제 미리보기 이미지가 로드되지 않았습니다: " + kind + " " + image.id);
+  }
+  function isNormalizedRect(rect) {
+    return rect?.x >= 0 && rect?.y >= 0 && rect?.width > 0 && rect?.height > 0 &&
+      rect.x + rect.width <= 1.001 && rect.y + rect.height <= 1.001;
+  }
+  async function runShippingPreview(log) {
+    const { board, original, originalBefore, comparison } = await setupShipping(log);
+    lastError = lastShippingPreview = lastAdoptedShipping = null;
+    await clickReady("#shipping-preview", "겹쳐보기");
+    const { preview } = await until(
+      () => lastShippingPreview?.rootId === board.start && lastShippingPreview,
+      "겹쳐보기 결과가 표시되지 않았습니다.",
+      45000,
+    );
+    check(sameIds(preview.columns.map(column => column.key), ["original", "minimal", "layout"]),
+      "원본과 두 수정안의 미리보기가 필요합니다.");
+    for (const row of preview.columns) {
+      const source = comparison.columns.find(column => column.key === row.key);
+      check(row.frame.id === source.frameId && row.receipts.fast.id === source.fastReviewId &&
+        row.receipts.basic.id === source.basicReviewId, "원본 또는 수정안의 미리보기 프레임 ID 불일치: " + row.key);
+      check([row.frame, row.receipts.fast, row.receipts.basic].every(pngHeader),
+        "Figma PNG 내보내기 결과 또는 크기가 올바르지 않습니다: " + row.key);
+      check(sameIds(row.hotspots.map(spot => spot.key), ["basic", "fast", "continue"]) &&
+        row.hotspots.every(isNormalizedRect), "배송 클릭 영역 좌표가 올바르지 않습니다: " + row.key);
+      check(row.key === "original" || (row.markers.length > 0 &&
+        row.markers.every(marker => marker.nodeId && isNormalizedRect(marker) && (!marker.from || isNormalizedRect(marker.from)))),
+      "변경 표시의 레이어 ID 또는 좌표가 올바르지 않습니다: " + row.key);
+    }
+    log.images = preview.columns.map(row => ({
+      key: row.key, start: row.frame.id, basic: row.receipts.basic.id, fast: row.receipts.fast.id,
+    }));
+    const originalPreview = preview.columns.find(column => column.key === "original");
+    log.markers = [];
+    log.routes = [];
+    for (const row of preview.columns) {
+      await clickReady('[data-preview-column="' + row.key + '"]', row.label);
+      await clickReady("#shipping-preview-overlay", "겹쳐보기");
+      if (row.key !== "original") {
+        await expectPreviewImage("original", originalPreview.frame);
+        await expectPreviewImage("proposal", row.frame);
+        const opacity = query("#shipping-preview-opacity");
+        check(opacity, "수정안 표시 강도 조절이 없습니다.");
+        opacity.value = "41";
+        opacity.dispatchEvent(new Event("input", { bubbles: true }));
+        await until(() => {
+          const image = query('[data-preview-image="proposal"]');
+          // The UI may set opacity on either the image or its immediate layer.
+          const style = image && getComputedStyle(image);
+          const layerStyle = image?.parentElement && getComputedStyle(image.parentElement);
+          return Number(style?.opacity) === 0.41 || Number(layerStyle?.opacity) === 0.41;
+        }, "수정안 표시 강도가 이미지에 반영되지 않았습니다.");
+        await clickReady("#shipping-preview-peek", "원본 잠깐 보기");
+        await until(() => query("#shipping-preview-peek")?.getAttribute("aria-pressed") === "true",
+          "원본만 보는 상태가 켜지지 않았습니다.");
+        await expectPreviewImage("original", originalPreview.frame);
+        await until(() => {
+          const image = query('[data-preview-image="proposal"]');
+          const hidden = layer => {
+            const style = getComputedStyle(layer);
+            return style.display === "none" || style.visibility === "hidden" || Number(style.opacity) === 0;
+          };
+          return !image || hidden(image) || hidden(image.parentElement);
+        }, "원본 잠깐 보기 상태에서 수정안이 계속 보입니다.");
+        await clickReady("#shipping-preview-peek", "수정안 다시 보기");
+        await expectPreviewImage("proposal", row.frame);
+        for (const marker of row.markers) {
+          const { targetInView } = await command("pan-away-proposal", "shipping", marker.nodeId);
+          check(!targetInView, "이동하기 전에 변경 레이어가 계속 화면에 보입니다: " + marker.key);
+          await clickReady('[data-preview-marker="' + marker.key + '"]', marker.label);
+          await until(async () => {
+            const { view } = await command("inspect", "shipping");
+            return view.selected.length === 1 && view.selected[0].id === marker.nodeId && view.selected[0].inViewport;
+          }, "변경 표시에서 해당 Figma 레이어로 이동하지 못했습니다: " + marker.key);
+          log.markers.push({ key: row.key, layer: marker.nodeId, change: marker.key });
+        }
+      }
+      await clickReady("#shipping-preview-test", "직접 눌러보기");
+      for (const route of ["basic", "fast", "continue"]) {
+        await clickReady('[data-preview-route="' + route + '"]', row.key + "/" + route);
+        const option = route === "continue" ? row.defaultOption : route;
+        const expected = option === "fast" ? "34,900원" : "29,900원";
+        await expectPreviewImage("receipt", row.receipts[option]);
+        await until(() => query("#shipping-preview-total")?.textContent.trim() === expected,
+          "배송 선택 후 화면의 주문 합계가 다릅니다: " + row.key + "/" + route);
+        log.routes.push({ key: row.key, route, option, total: expected, receipt: row.receipts[option].id });
+        await clickReady("#shipping-preview-back", "배송 선택으로 돌아가기");
+      }
+    }
+
+    await clickReady("#shipping-adopt", "이 안 채택");
+    const { adopted } = await until(
+      () => lastAdoptedShipping?.rootId === board.start && lastAdoptedShipping,
+      "배송 수정안 채택 결과가 없습니다.",
+      30000,
+    );
+    check(adopted.key === "layout", "선택한 배치 변경안이 채택되지 않았습니다.");
+    const variantIds = new Set(preview.columns.flatMap(row => [row.frame.id, row.receipts.basic.id, row.receipts.fast.id]));
+    check(new Set([adopted.frameId, adopted.basicReviewId, adopted.fastReviewId]).size === 3 &&
+      [adopted.frameId, adopted.basicReviewId, adopted.fastReviewId].every(id => id && !variantIds.has(id)),
+    "채택안이 별도 프로토타입 여정으로 생성되지 않았습니다.");
+    await until(async () => {
+      const { view } = await command("inspect", "shipping");
+      return view.selected.length === 1 && view.selected[0].id === adopted.frameId && view.selected[0].inViewport;
+    }, "채택한 배송 프레임이 선택되지 않았습니다.");
+    const selectedDesign = comparison.columns.find(column => column.key === adopted.key);
+    const { shipping: [source, accepted, chosen], shippingCheck } = await command(
+      "inspect-adopted-shipping", "shipping", null, [original, adopted, selectedDesign],
+    );
+    check(JSON.stringify(source) === JSON.stringify(originalBefore), "채택 후 원본 배송 여정이 변경되었습니다.");
+    check(accepted.fast.model === board.component && accepted.basic.model === board.component &&
+      !accepted.fast.selected && accepted.basic.selected,
+    "채택안의 배송 옵션에 기존 컴포넌트 또는 기본 선택이 유지되지 않았습니다.");
+    check(["basic", "fast", "next"].every(key => ["x", "y", "width", "height"].every(dimension =>
+      accepted[key][dimension] === chosen[key][dimension])) &&
+      accepted.fast.parentId === accepted.basic.parentId && accepted.fast.parentId !== adopted.frameId,
+    "채택안에 선택한 배송 옵션 배치가 유지되지 않았습니다.");
+    check(accepted.fast.to === adopted.fastReviewId && accepted.basic.to === adopted.basicReviewId &&
+      accepted.next.to === adopted.basicReviewId &&
+      accepted.fastReview.labels.includes("결제 예정 금액 34,900원") &&
+      accepted.basicReview.labels.includes("결제 예정 금액 29,900원"),
+    "채택안의 배송 확인 화면 연결 또는 총액이 일치하지 않습니다.");
+    check(shippingCheck.editable && shippingCheck.original === "risk_signal" && shippingCheck.adopted === "signal_absent",
+      "채택안이 잠겼거나 실제 재검사 결과가 다릅니다.");
+    log.adopted = { key: adopted.key, frame: adopted.frameId, model: accepted.fast.model, ...shippingCheck };
     delete log.diagnostics;
     log.passed = true;
   }
@@ -478,14 +633,21 @@
     active = true;
     toolbar.querySelectorAll("button").forEach((b) => (b.disabled = true));
     try {
-      if (["qa-run", "qa-run-shipping", "qa-run-proposals"].includes(btn.id)) {
+      if (["qa-run", "qa-run-shipping", "qa-run-proposals", "qa-run-shipping-preview"].includes(btn.id)) {
         const report = {
           started: new Date().toISOString(),
           cases: [],
           passed: false,
         };
         try {
-          if (btn.id === "qa-run-proposals") {
+          if (btn.id === "qa-run-shipping-preview") {
+            await command("build");
+            status.textContent = "배송 오버레이 검사 중";
+            const log = { journey: "shipping-preview", passed: false };
+            report.cases.push(log);
+            await runShippingPreview(log);
+            status.textContent = "배송 오버레이·채택 통과";
+          } else if (btn.id === "qa-run-proposals") {
             await command("prepare-proposals");
             for (const kind of ["hierarchy", "price"]) {
               status.textContent = (kind === "hierarchy" ? "계층구조" : "가격") + " 수정안 검사 중";

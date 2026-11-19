@@ -74,6 +74,39 @@
     .shipping-amount { text-align: right; font-size: 15px; font-variant-numeric: tabular-nums; }
     .shipping-fee { text-align: right; }
     .shipping-row > .shipping-link { justify-self: end; grid-column: 2; font-size: 11px; }
+    .preview { margin: 12px 0 10px; padding: 10px; border: 1px solid #cddccc; border-radius: 8px; background: #f9faf7; scroll-margin-top: 8px; }
+    .preview-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+    .preview-heading h3 { font-size: 14px; }
+    .preview-switch { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+    .preview-switch button, .preview-tools button, .preview-routes button {
+      padding: 4px 7px; border: 1px solid #b9c9bc; border-radius: 5px; color: #254b38; background: #fff; font-size: 11px; font-weight: 650;
+    }
+    .preview-switch button[aria-pressed="true"], .preview-tools button[aria-pressed="true"] { color: #fff; background: #28563f; border-color: #28563f; }
+    .preview-tools { display: flex; align-items: center; flex-wrap: wrap; gap: 5px 8px; margin: 8px 0 0; color: #405548; font-size: 11px; }
+    .preview-tools input { flex: 1; min-width: 58px; accent-color: #28563f; }
+    .preview-stage {
+      display: flex; justify-content: center; align-items: center; padding: 9px; margin: 8px 0;
+      border: 1px solid #dce5db; border-radius: 6px; background: #ecf1eb;
+    }
+    .preview-canvas { position: relative; width: 100%; background: #fff; overflow: hidden; box-shadow: 0 1px 6px #16372420; }
+    .preview-plane, .preview-plane img, .preview-markers { position: absolute; left: 0; top: 0; }
+    .preview-plane img, .preview-markers { width: 100%; height: 100%; }
+    .preview-plane img { object-fit: fill; }
+    .preview-markers { pointer-events: none; }
+    .preview-marker, .preview-hotspot { position: absolute; padding: 0; border: 2px solid #28694b; border-radius: 4px; background: #c3f1c322; pointer-events: auto; }
+    .preview-marker:hover, .preview-hotspot:hover { background: #b5f4b844; }
+    .preview-marker:focus-visible, .preview-hotspot:focus-visible { outline-offset: -2px; }
+    .preview-before { position: absolute; border: 1.5px dashed #9c4d32; border-radius: 4px; pointer-events: none; }
+    .preview-hotspot { border-style: dotted; border-color: #28563f9e; background: transparent; }
+    .preview-list { display: grid; gap: 4px; margin-top: 6px; }
+    .preview-list button { width: 100%; }
+    .preview-list .proposal-step-detail { font-weight: 400; }
+    .preview-routes { display: flex; gap: 4px; flex-wrap: wrap; }
+    .preview-routes button:hover, .preview-tools button:not([aria-pressed="true"]):hover { background: #eaf1e8; }
+    .preview-order { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; padding: 7px 0; }
+    .preview-order p { color: #405548; font-size: 11px; }
+    .preview-order strong { font-size: 17px; font-variant-numeric: tabular-nums; }
+    .preview-adopted { margin-top: 7px; color: #2b583d; font-size: 11px; overflow-wrap: anywhere; }
     .proposal-row { padding: 9px 0; border-top: 1px solid #e0e7de; }
     .proposal-row:first-of-type { margin-top: 9px; }
     .proposal-row-title { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; font-size: 13px; }
@@ -202,6 +235,12 @@
     let shippingChoice = 'default';
     let shippingBusy = false;
     let shippingError = '';
+    const adoptedShipping = new Map();
+    const newShippingPreview = () => ({
+      open: false, busy: false, action: '', error: '', data: null,
+      key: 'minimal', mode: 'overlay', route: null, opacity: 100, peek: false
+    });
+    let shippingPreview = newShippingPreview();
 
     function send(message) {
       parent.postMessage({ pluginMessage: message }, '*');
@@ -253,6 +292,7 @@
 
     function requestShipping(type, button) {
       if (comparisonBusy()) return;
+      shippingPreview = newShippingPreview();
       shippingBusy = true;
       shippingError = '';
       button.disabled = true;
@@ -261,7 +301,7 @@
     }
 
     function comparisonBusy() {
-      return shippingBusy || [...proposalStates.values()].some(state => state.busy);
+      return shippingBusy || shippingPreview.busy || [...proposalStates.values()].some(state => state.busy);
     }
 
     function shippingColumn(column) {
@@ -338,9 +378,14 @@
         overview.id = 'shipping-overview';
         overview.disabled = comparisonBusy();
         overview.title = '생성 시점의 원본 사본과 두 수정안 보기';
+        const preview = panelButton('겹쳐보기', 'shipping-action primary', openShippingPreview);
+        preview.id = 'shipping-preview';
+        preview.disabled = comparisonBusy();
+        preview.setAttribute('aria-expanded', String(shippingPreview.open));
         const actions = element('div', 'shipping-actions');
-        actions.append(overview, rescan);
+        actions.append(preview, overview, rescan);
         shippingHost.append(actions);
+        if (shippingPreview.open) shippingHost.append(shippingPreviewPanel());
       } else if (shippingOffer) {
         shippingHost.append(element('p', 'shipping-intro', '일반배송을 기본값으로 둔 최소 수정안과 배송 옵션의 배치를 바꾼 수정안을 캔버스에 만듭니다.'));
         const create = panelButton('배송 수정안 만들기', 'shipping-action primary', () => requestShipping('shipping-create', create));
@@ -364,6 +409,8 @@
       shippingChoice = 'default';
       shippingBusy = false;
       shippingError = '';
+      shippingPreview = newShippingPreview();
+      adoptedShipping.clear();
     }
 
     function shippingReply(message) {
@@ -376,6 +423,312 @@
         announcement.textContent = '배송안별 주문 총액을 표시했습니다.';
       }
       renderComparisons();
+    }
+
+    function openShippingPreview() {
+      if (comparisonBusy()) return;
+      const key = shippingPreview.key;
+      shippingPreview = { ...newShippingPreview(), key, open: true, busy: true, action: 'preview' };
+      renderComparisons();
+      shippingHost.querySelector('#shipping-preview-panel')?.scrollIntoView?.({ block: 'start' });
+      send({ type: 'shipping-preview' });
+    }
+
+    function previewButton(label, id, onClick, className = 'secondary') {
+      const button = panelButton(label, className, onClick);
+      if (id) button.id = id;
+      button.disabled = comparisonBusy();
+      return button;
+    }
+
+    function previewRect(node, bounds) {
+      if (!bounds) return false;
+      const { x, y, width, height } = bounds;
+      if (![x, y, width, height].every(Number.isFinite)) return false;
+      const left = Math.max(0, x), top = Math.max(0, y);
+      const right = Math.min(1, x + width), bottom = Math.min(1, y + height);
+      if (right <= left || bottom <= top) return false;
+      Object.assign(node.style, {
+        left: left * 100 + '%', top: top * 100 + '%',
+        width: (right - left) * 100 + '%', height: (bottom - top) * 100 + '%'
+      });
+      return true;
+    }
+
+    function previewPlane(canvas, frame, width, height, key, label) {
+      const plane = element('div', 'preview-plane');
+      plane.style.width = frame.width / width * 100 + '%';
+      plane.style.height = frame.height / height * 100 + '%';
+      if (typeof frame.png === 'string' && frame.png.length <= 8000000 && /^[A-Za-z0-9+/]+={0,2}$/.test(frame.png)) {
+        const image = element('img');
+        image.dataset.previewImage = key;
+        image.src = 'data:image/png;base64,' + frame.png;
+        image.alt = label;
+        plane.append(image);
+      }
+      canvas.append(plane);
+      return plane;
+    }
+
+    function previewOverlayVisibility(panel) {
+      const { opacity, peek } = shippingPreview;
+      const image = panel.querySelector('[data-preview-image="proposal"]');
+      if (image) {
+        image.style.opacity = String(peek ? 0 : opacity / 100);
+        image.setAttribute('aria-hidden', String(peek || opacity === 0));
+      }
+      for (const layer of panel.querySelectorAll('.preview-markers')) layer.hidden = peek || opacity === 0;
+      const button = panel.querySelector('#shipping-preview-peek');
+      if (button) {
+        button.setAttribute('aria-pressed', String(peek));
+        button.textContent = peek ? '수정안 다시 보기' : '원본 잠깐 보기';
+      }
+    }
+
+    function redrawShippingPreview(selector) {
+      const panel = shippingHost?.querySelector('#shipping-preview-panel');
+      if (!panel) return;
+      const next = shippingPreviewPanel();
+      panel.replaceWith(next);
+      next.querySelector(selector)?.focus({ preventScroll: true });
+    }
+
+    function focusPreviewMarker(column, marker) {
+      send({ type: 'shipping-preview-focus', key: column.key, marker: marker.key });
+    }
+
+    function routePreview(column, route) {
+      const option = route === 'continue' ? column.defaultOption : route;
+      if (!column.receipts?.[option]) return;
+      shippingPreview.route = route;
+      redrawShippingPreview('#shipping-preview-back');
+      announcement.textContent = '주문 합계 ' + money(column[option + 'Total']);
+    }
+
+    function previewCanvas(column, original, receipt, openRoute) {
+      const overlay = shippingPreview.mode === 'overlay';
+      const current = receipt || column.frame;
+      const layered = overlay && column.key !== 'original' && original?.frame;
+      const width = Math.max(current.width, layered ? original.frame.width : 0);
+      const height = Math.max(current.height, layered ? original.frame.height : 0);
+      const stage = element('div', 'preview-stage');
+      if (!(width > 0) || !(height > 0)) {
+        stage.append(element('p', 'shipping-intro', '화면 크기를 읽을 수 없습니다.'));
+        return stage;
+      }
+      const canvas = element('div', 'preview-canvas');
+      canvas.style.aspectRatio = width + ' / ' + height;
+      canvas.style.maxWidth = Math.min(305, 330 * width / height) + 'px';
+      stage.append(canvas);
+      if (layered) {
+        const backdrop = previewPlane(canvas, original.frame, width, height, 'original', '원본 배송 화면');
+        const proposal = previewPlane(canvas, column.frame, width, height, 'proposal', variantNames[column.key] + ' 배송 화면');
+        const before = element('div', 'preview-markers');
+        const after = element('div', 'preview-markers');
+        for (const marker of column.markers || []) {
+          const previous = element('span', 'preview-before');
+          if (previewRect(previous, marker.from)) before.append(previous);
+          const target = previewButton('', null, () => focusPreviewMarker(column, marker), 'preview-marker');
+          target.title = marker.label + ' 레이어로 이동';
+          target.setAttribute('aria-label', target.title);
+          target.dataset.previewMarker = marker.key;
+          if (previewRect(target, marker)) after.append(target);
+        }
+        // Keep old and new marks above both raster layers.
+        const locate = (marks, plane) => {
+          marks.style.width = plane.style.width;
+          marks.style.height = plane.style.height;
+          canvas.append(marks);
+        };
+        locate(before, backdrop);
+        locate(after, proposal);
+        return stage;
+      }
+      const layer = previewPlane(canvas, current, width, height, receipt ? 'receipt' : column.key, receipt ? '주문 확인 화면' : variantNames[column.key] + ' 배송 화면');
+      if (!overlay && !receipt) {
+        for (const hotspot of column.hotspots || []) {
+          const target = previewButton('', null, () => openRoute(hotspot.key), 'preview-hotspot');
+          target.dataset.previewRoute = hotspot.key;
+          target.title = hotspot.label;
+          target.setAttribute('aria-label', hotspot.label);
+          if (previewRect(target, hotspot)) layer.append(target);
+        }
+      }
+      return stage;
+    }
+
+    function shippingPreviewPanel() {
+      const panel = element('section', 'preview');
+      panel.id = 'shipping-preview-panel';
+      panel.setAttribute('aria-label', '배송 화면 미리보기');
+      panel.setAttribute('aria-busy', String(shippingPreview.busy));
+      const heading = element('div', 'preview-heading');
+      const close = previewButton('미리보기 닫기', 'shipping-preview-close', () => {
+        shippingPreview.open = false;
+        renderComparisons();
+        shippingHost.querySelector('#shipping-preview')?.focus();
+      }, 'shipping-link');
+      heading.append(element('h3', '', '배송 화면 미리보기'), close);
+      panel.append(heading);
+      const { data, mode, route } = shippingPreview;
+      if (shippingPreview.busy || shippingPreview.error) {
+        const message = element('p', 'shipping-message', shippingPreview.error ||
+          (shippingPreview.action === 'adopt' ? '채택한 안을 Figma에 만들고 있습니다.' : 'Figma 화면을 불러오고 있습니다.'));
+        message.setAttribute('role', shippingPreview.error ? 'alert' : 'status');
+        panel.append(message);
+      }
+      const columns = (data?.columns || []).filter(item => Object.hasOwn(variantNames, item.key) && item.frame);
+      const original = columns.find(item => item.key === 'original');
+      const column = columns.find(item => item.key === shippingPreview.key) || original;
+      if (!column) return panel;
+
+      const keys = element('div', 'preview-switch');
+      keys.setAttribute('aria-label', '배송안 선택');
+      keys.setAttribute('role', 'group');
+      for (const item of columns) {
+        const button = previewButton(variantNames[item.key], null, () => {
+          Object.assign(shippingPreview, { key: item.key, route: null, peek: false, error: '' });
+          redrawShippingPreview('[data-preview-column="' + item.key + '"]');
+        });
+        button.dataset.previewColumn = item.key;
+        button.setAttribute('aria-pressed', String(item.key === column.key));
+        keys.append(button);
+      }
+      const modes = element('div', 'preview-switch');
+      modes.setAttribute('aria-label', '미리보기 방식');
+      modes.setAttribute('role', 'group');
+      for (const [key, label] of [['overlay', '겹쳐보기'], ['test', '직접 눌러보기']]) {
+        const id = 'shipping-preview-' + key;
+        const button = previewButton(label, id, () => {
+          Object.assign(shippingPreview, { mode: key, route: null, peek: false, error: '' });
+          redrawShippingPreview('#' + id);
+        });
+        button.setAttribute('aria-pressed', String(mode === key));
+        modes.append(button);
+      }
+      panel.append(keys, modes);
+
+      if (mode === 'overlay' && column.key !== 'original') {
+        const tools = element('div', 'preview-tools');
+        const label = element('label', '', '수정안 표시 강도');
+        const input = element('input');
+        input.id = 'shipping-preview-opacity';
+        input.type = 'range';
+        input.min = '0';
+        input.max = '100';
+        input.value = String(shippingPreview.opacity);
+        input.disabled = comparisonBusy();
+        label.htmlFor = input.id;
+        const output = element('output', '', shippingPreview.opacity + '%');
+        output.htmlFor = input.id;
+        const handleOpacity = () => {
+          Object.assign(shippingPreview, { opacity: Number(input.value), peek: false });
+          output.textContent = input.value + '%';
+          previewOverlayVisibility(panel);
+        };
+        input.addEventListener('input', handleOpacity);
+        input.addEventListener('change', handleOpacity);
+        const peek = previewButton('원본 잠깐 보기', 'shipping-preview-peek', () => {
+          shippingPreview.peek = !shippingPreview.peek;
+          previewOverlayVisibility(panel);
+        });
+        tools.append(label, input, output, peek);
+        panel.append(tools);
+      }
+      const option = route === 'continue' ? column.defaultOption : route;
+      const receipt = mode === 'test' && option ? column.receipts?.[option] : null;
+      panel.append(previewCanvas(column, original, receipt, value => routePreview(column, value)));
+      previewOverlayVisibility(panel);
+
+      if (mode === 'overlay' && column.key !== 'original' && column.markers?.length) {
+        const changes = element('div', 'preview-list');
+        for (const marker of column.markers) {
+          const button = previewButton('', null, () => focusPreviewMarker(column, marker), 'proposal-step');
+          button.dataset.previewMarker = marker.key;
+          button.append(element('span', 'proposal-step-label', marker.label));
+          if (marker.detail) button.append(element('span', 'proposal-step-detail', marker.detail));
+          changes.append(button);
+        }
+        panel.append(changes);
+      }
+      if (mode === 'test') {
+        const order = element('div', 'preview-order');
+        const path = route ? (route === 'continue' ? '선택 없이 진행' : choiceNames[route]) : '기본 선택';
+        const total = element('strong', '', money(column[(option || column.defaultOption) + 'Total']));
+        total.id = 'shipping-preview-total';
+        order.append(element('p', '', path + ' · 주문 합계'), total);
+        panel.append(order);
+        const routes = element('div', 'preview-routes');
+        if (receipt) {
+          routes.append(previewButton('배송 선택으로 돌아가기', 'shipping-preview-back', () => {
+            shippingPreview.route = null;
+            redrawShippingPreview('.preview-routes [data-preview-route="continue"]');
+          }));
+        } else {
+          for (const [key, label] of [['basic', '일반배송 선택'], ['fast', '빠른배송 선택'], ['continue', '선택 없이 진행']]) {
+            const button = previewButton(label, null, () => routePreview(column, key));
+            button.dataset.previewRoute = key;
+            button.disabled ||= !column.receipts?.[key === 'continue' ? column.defaultOption : key];
+            routes.append(button);
+          }
+        }
+        panel.append(routes);
+      }
+      if (column.key !== 'original') {
+        const adopted = adoptedShipping.get(column.key);
+        const adopt = previewButton('이 안 채택', 'shipping-adopt', () => {
+          Object.assign(shippingPreview, { busy: true, action: 'adopt', error: '' });
+          renderComparisons();
+          send({ type: 'shipping-adopt', key: column.key });
+        }, 'shipping-action primary');
+        adopt.disabled ||= Boolean(adopted);
+        const actions = element('div', 'shipping-actions');
+        actions.append(adopt);
+        if (adopted) {
+          actions.append(previewButton('채택한 안 보기', 'shipping-adopt-focus', () =>
+            send({ type: 'shipping-adopt-focus', key: column.key }), 'shipping-action secondary'));
+          const status = element('p', 'preview-adopted', adopted.name + ' · 편집 가능');
+          status.setAttribute('role', 'status');
+          panel.append(status);
+        }
+        panel.append(actions);
+      }
+      return panel;
+    }
+
+    function shippingPreviewReply(message) {
+      if (!inspectedRoot || message.rootId !== inspectedRoot) return;
+      let focusSelector;
+      switch (message.type) {
+        case 'shipping-preview-loading':
+          shippingPreview.busy = true;
+          shippingPreview.open = true;
+          break;
+        case 'shipping-preview-result':
+          shippingPreview.busy = false;
+          shippingPreview.data = message.preview;
+          shippingPreview.error = '';
+          if (message.preview?.adopted?.key) adoptedShipping.set(message.preview.adopted.key, message.preview.adopted);
+          announcement.textContent = '배송 화면 미리보기를 불러왔습니다.';
+          focusSelector = '#shipping-preview-overlay';
+          break;
+        case 'shipping-adopted':
+          shippingPreview.busy = false;
+          shippingPreview.error = '';
+          if (message.adopted?.key) adoptedShipping.set(message.adopted.key, message.adopted);
+          announcement.textContent = '편집 가능한 배송 채택안을 만들었습니다.';
+          focusSelector = '#shipping-adopt-focus';
+          break;
+        case 'shipping-preview-error':
+          shippingPreview.busy = false;
+          shippingPreview.error = message.message || '배송 미리보기를 불러올 수 없습니다.';
+          break;
+        case 'shipping-preview-invalidated':
+          shippingPreview = newShippingPreview();
+          break;
+      }
+      renderComparisons();
+      if (focusSelector) shippingHost?.querySelector(focusSelector)?.focus({ preventScroll: true });
     }
 
     function requestProposal(kind, operation, button) {
@@ -585,6 +938,11 @@
         case 'shipping-loading':
         case 'shipping-comparison':
         case 'shipping-error': shippingReply(message); break;
+        case 'shipping-preview-loading':
+        case 'shipping-preview-result':
+        case 'shipping-preview-error':
+        case 'shipping-preview-invalidated':
+        case 'shipping-adopted': shippingPreviewReply(message); break;
         case 'proposal-loading':
         case 'proposal-comparison':
         case 'proposal-error': proposalReply(message); break;

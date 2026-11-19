@@ -1,5 +1,6 @@
 // Load the shipping entry, controller, reader and analyzer exactly as the public plugin does.
 import "../src/main.js";
+import { analyzeJourney } from "../src/analyze.js";
 import { readJourney } from "../src/reader.js";
 import { build, prepareProposalFixtures, proposalFixtures, registered, state, useCurrentPage } from "./fixture/board.js";
 
@@ -90,6 +91,20 @@ async function inspectShipping(board, columns) {
   return result;
 }
 
+async function inspectAdoptedShipping(columns) {
+  const [source, adopted] = await Promise.all(columns.map(column => frame(column.frameId)));
+  const [originalJourney, adoptedJourney] = await Promise.all(
+    [source, adopted].map(start => readJourney(figma, start)),
+  );
+  const patternStatus = journey =>
+    analyzeJourney(journey).find(finding => finding.pattern === "paid_option_preselection")?.status;
+  return {
+    editable: !adopted.locked && figma.currentPage.flowStartingPoints.some(point => point.nodeId === adopted.id),
+    original: patternStatus(originalJourney),
+    adopted: patternStatus(adoptedJourney),
+  };
+}
+
 async function componentFingerprint(id) {
   const node = await figma.getNodeByIdAsync(id);
   if (!node || node.type !== "INSTANCE") throw Error("원본 QA 컴포넌트 인스턴스가 없습니다.");
@@ -156,8 +171,10 @@ figma.ui.on("message", async (message) => {
     const proposalData = operation === "inspect-proposals"
       ? await inspectProposals(board, journey, message.columns, message.referenceFrameId)
       : undefined;
-    const shipping = operation === "inspect-shipping" && journey === "shipping"
+    const inspectAdopted = operation === "inspect-adopted-shipping" && journey === "shipping";
+    const shipping = (operation === "inspect-shipping" || inspectAdopted) && journey === "shipping"
       ? await inspectShipping(board, message.columns) : undefined;
+    const shippingCheck = inspectAdopted ? await inspectAdoptedShipping(message.columns) : undefined;
     const capture = operation === "read-journey" && root ? await readJourney(figma, root) : undefined;
     if (capture) {
       for (const state of capture.states) {
@@ -186,6 +203,7 @@ figma.ui.on("message", async (message) => {
       view: snapshot(),
       targetInView,
       shipping,
+      shippingCheck,
       proposalData,
       capture,
       board,

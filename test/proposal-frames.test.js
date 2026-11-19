@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { cloneProposal } from "../src/proposal-frames.js";
+import { cloneAdoptedJourney, cloneProposal } from "../src/proposal-frames.js";
 
 function host() {
   const page = { id: "page", type: "PAGE", children: [], flowStartingPoints: [{ nodeId: "start", name: "원본" }] };
@@ -67,4 +67,21 @@ test("failed edits remove both partial alternatives and keep source flow starts"
   }), /unsupported layout/);
   assert.deepEqual(page.children.map(node => node.id), ["start", "middle", "pay", "external"]);
   assert.deepEqual(page.flowStartingPoints.map(point => point.nodeId), ["start"]);
+});
+
+test("the adopted copy is validated before registering its editable flow", async () => {
+  const { api, page, nodes } = host();
+  await assert.rejects(cloneAdoptedJourney(api, spec, () => { throw Error("failed verification"); }), /failed verification/);
+  assert.deepEqual(page.children.map(node => node.id), ["start", "middle", "pay", "external"]);
+  assert.deepEqual(page.flowStartingPoints.map(point => point.nodeId), ["start"]);
+  const approved = await cloneAdoptedJourney(api, spec, (start, copies) => {
+    assert.equal(destination(start), copies.get("middle").id);
+    assert.equal(destination(copies.get("middle")), copies.get("pay").id);
+    assert.equal(start.children[0].type, "INSTANCE");
+    assert.deepEqual(page.flowStartingPoints.map(point => point.nodeId), ["start"]);
+  });
+  const start = approved.get("start");
+  assert.match(start.name, /채택안$/);
+  assert.deepEqual(page.flowStartingPoints.map(point => point.nodeId), ["start", start.id]);
+  assert.equal(destination(nodes.get("start")), "middle");
 });

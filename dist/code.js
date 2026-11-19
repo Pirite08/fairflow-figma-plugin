@@ -251,21 +251,21 @@
     )];
   }
   function offerPrice(state) {
-    const controls = new Map(state.nodes.filter(button).map((n) => [n.node_id, n]));
+    const controls2 = new Map(state.nodes.filter(button).map((n) => [n.node_id, n]));
     const isCard = (n) => /[가-힣a-z]/i.test(n.text.replace(/₩?\s*[\d,]+\s*원?/g, "")) && !/결제|구매하기|장바구니|담기|선택|추가|옵션|동의|계속|신청|가입|주문하기/.test(n.text);
     const includesFee = /(?:^|\s)총(?:액|\s*가격)?\s*(?:₩\s*)?[\d,]+\s*원\s*[(（·,]?\s*(?:필수\s*)?(?:배송비|수수료|발권비)\s*포함\s*[)）.]?\s*$/;
     const isPrice = (n) => money(n) !== null && !totalText.test(n.text) && (!feeText.test(n.text) || includesFee.test(n.text)) && !/할인액|적립|쿠폰|정가|상품\s*소계/.test(n.text);
     const represented = /* @__PURE__ */ new Set(), options = [];
     for (const n of state.nodes) {
       if (n.role !== "text" || !isPrice(n)) continue;
-      const owner = controls.get(n.control_node_id || n.parent_id);
+      const owner = controls2.get(n.control_node_id || n.parent_id);
       if (!owner) options.push(n);
       else if (isCard(owner)) {
         options.push(__spreadProps(__spreadValues({}, n), { offer_action_id: owner.node_id }));
         represented.add(owner.node_id);
       }
     }
-    for (const card of controls.values()) {
+    for (const card of controls2.values()) {
       if (!represented.has(card.node_id) && isPrice(card) && isCard(card)) {
         options.push(__spreadProps(__spreadValues({}, card), { offer_action_id: card.node_id }));
       }
@@ -488,8 +488,8 @@
       return channel.toString(16).padStart(2, "0").toUpperCase();
     }).join("");
   }
-  function intersects(rect, clip) {
-    return !rect || !clip || rect.x < clip.x + clip.width && rect.x + rect.width > clip.x && rect.y < clip.y + clip.height && rect.y + rect.height > clip.y;
+  function intersects(rect, clip2) {
+    return !rect || !clip2 || rect.x < clip2.x + clip2.width && rect.x + rect.width > clip2.x && rect.y < clip2.y + clip2.height && rect.y + rect.height > clip2.y;
   }
   function rectangleBackdrop(shape, label) {
     var _a, _b, _c, _d;
@@ -560,7 +560,7 @@
     const nodes = [];
     const links = [];
     const origin = frame.absoluteBoundingBox || { x: 0, y: 0 };
-    function walk(layer, owner, parentOpacity, parentColor, clip, depth) {
+    function walk(layer, owner, parentOpacity, parentColor, clip2, depth) {
       var _a, _b;
       if (budget.layers === 0 || depth > MAX_DEPTH) {
         warnings.add("레이어 수 또는 중첩 깊이 한도에 도달해 일부 레이어를 생략했습니다.");
@@ -570,7 +570,7 @@
       const opacity = parentOpacity * ((_a = layer.opacity) != null ? _a : 1);
       if (layer.visible === false || opacity === 0) return;
       const rect = layer.absoluteBoundingBox;
-      if (!intersects(rect, clip)) {
+      if (!intersects(rect, clip2)) {
         warnings.add("프레임 밖으로 완전히 잘린 레이어는 현재 화면에서 제외했습니다.");
         return;
       }
@@ -624,7 +624,7 @@
         links.push({ nodeId: part.item.node_id, triggerNodeId: layer.id, reaction });
       }
       const activeOwner = isRoot ? null : part;
-      const nextClip = layer.clipsContent ? clipRect(rect, clip) : clip;
+      const nextClip = layer.clipsContent ? clipRect(rect, clip2) : clip2;
       for (const child of layer.children || []) {
         if (!budget.layers) {
           warnings.add("레이어 수 또는 중첩 깊이 한도에 도달해 일부 레이어를 생략했습니다.");
@@ -737,6 +737,342 @@
     };
   }
 
+  // src/proposal-frames.js
+  var GUTTER = 96;
+  function canvasBounds(node) {
+    return node.absoluteBoundingBox || { x: node.x, y: node.y, width: node.width, height: node.height };
+  }
+  function positionOnCanvas(node, x, y) {
+    const rect = canvasBounds(node);
+    node.x += x - rect.x;
+    node.y += y - rect.y;
+  }
+  function roomToRight(existing, x, y, width, height) {
+    for (const rect of existing.map(canvasBounds).sort((a, b) => a.x - b.x)) {
+      if (rect.y + rect.height + GUTTER <= y || rect.y >= y + height + GUTTER || rect.x + rect.width + GUTTER <= x || rect.x >= x + width + GUTTER) continue;
+      x = rect.x + rect.width + GUTTER;
+    }
+    return x;
+  }
+  function indexCopy(source, copy, byId, sources) {
+    if (source.type !== copy.type) throw Error("복제한 레이어의 구조가 원본과 달라 연결을 유지할 수 없습니다.");
+    byId.set(source.id, copy);
+    sources.push(source);
+    const original = source.children || [];
+    const cloned = copy.children || [];
+    if (original.length !== cloned.length) throw Error("복제한 레이어의 구조가 원본과 달라 연결을 유지할 수 없습니다.");
+    for (let index = 0; index < original.length; index++) indexCopy(original[index], cloned[index], byId, sources);
+  }
+  function mapAction(action, byId) {
+    if (action.type === "CONDITIONAL") {
+      return __spreadProps(__spreadValues({}, action), { conditionalBlocks: action.conditionalBlocks.map((block) => __spreadProps(__spreadValues({}, block), {
+        actions: block.actions.map((next) => mapAction(next, byId))
+      })) });
+    }
+    const destination = action.type === "NODE" && byId.get(action.destinationId);
+    return destination ? __spreadProps(__spreadValues({}, action), { destinationId: destination.id }) : action;
+  }
+  async function wireCopies(sources, byId) {
+    var _a;
+    for (const source of sources) {
+      if (!((_a = source.reactions) == null ? void 0 : _a.length)) continue;
+      const copy = byId.get(source.id);
+      const reactions = source.reactions.map((reaction) => ({
+        trigger: reaction.trigger,
+        actions: (reaction.actions || (reaction.action ? [reaction.action] : [])).map((action) => mapAction(action, byId))
+      }));
+      const originalCopy = (copy.reactions || []).map((reaction) => ({ trigger: reaction.trigger, actions: reaction.actions }));
+      if (JSON.stringify(reactions) !== JSON.stringify(originalCopy)) await copy.setReactionsAsync(reactions);
+    }
+  }
+  function arrangeBoard(existing, source, columns) {
+    const anchor = canvasBounds(source);
+    const widths = columns.map((column) => Math.max(...column.map((frame) => canvasBounds(frame).width)));
+    const height = Math.max(...columns.map((column) => column.reduce((total, frame) => total + canvasBounds(frame).height + GUTTER, -GUTTER)));
+    const width = widths.reduce((total, size) => total + size + GUTTER, -GUTTER);
+    let x = roomToRight(existing, anchor.x + anchor.width + GUTTER, anchor.y, width, height);
+    for (const [index, column] of columns.entries()) {
+      let y = anchor.y;
+      for (const frame of column) {
+        positionOnCanvas(frame, x, y);
+        y += canvasBounds(frame).height + GUTTER;
+      }
+      x += widths[index] + GUTTER;
+    }
+  }
+  async function openCopySession(api, { pageId, frameId, frameIds }) {
+    const page = api.currentPage;
+    if (page.id !== pageId) throw Error("검사한 페이지에서 수정안을 만들어 주세요.");
+    const ids = [.../* @__PURE__ */ new Set([frameId, ...frameIds])];
+    const source = await Promise.all(ids.map((id) => api.getNodeByIdAsync(id)));
+    if (source.some((frame) => {
+      var _a;
+      return !frame || frame.removed || frame.type !== "FRAME" || ((_a = frame.parent) == null ? void 0 : _a.id) !== page.id;
+    })) {
+      throw Error("수정할 여정의 화면이 모두 같은 페이지의 최상위 프레임이어야 합니다.");
+    }
+    const existing = page.children.slice();
+    const owned = [];
+    const names = new Set(existing.map((node) => node.name));
+    function copyFrame(frame, label) {
+      const copied = frame.clone();
+      owned.push(copied);
+      const title = frame.name + " · " + label;
+      let name = title;
+      let index = 2;
+      while (names.has(name)) name = title + " " + index++;
+      names.add(name);
+      copied.name = name;
+      copied.locked = false;
+      return copied;
+    }
+    function finish(columns, starts) {
+      if (api.currentPage.id !== page.id) throw Error("수정안을 만드는 동안 페이지가 바뀌었습니다.");
+      arrangeBoard(existing, source[0], columns);
+      const generated = new Set(owned.map((node) => node.id));
+      page.flowStartingPoints = [...page.flowStartingPoints.filter((point) => !generated.has(point.nodeId)), ...starts];
+    }
+    function rollback() {
+      for (const node of owned.reverse()) if (!node.removed) node.remove();
+    }
+    return { source, copyFrame, finish, rollback, own: (node) => {
+      owned.push(node);
+      return node;
+    } };
+  }
+  async function copyJourney(source, label, copyFrame) {
+    const copies = source.map((node) => copyFrame(node, label));
+    const byId = /* @__PURE__ */ new Map(), sources = [];
+    for (const [index, node] of source.entries()) indexCopy(node, copies[index], byId, sources);
+    await wireCopies(sources, byId);
+    return { copies, byId };
+  }
+  async function cloneProposal(api, spec, editVariant) {
+    const { source, copyFrame, finish, rollback, own } = await openCopySession(api, spec);
+    try {
+      const reference = copyFrame(source[0], "원본 · 생성 시점");
+      const referenceById = /* @__PURE__ */ new Map(), referenceSources = [];
+      indexCopy(source[0], reference, referenceById, referenceSources);
+      await wireCopies(referenceSources, referenceById);
+      const result = { referenceFrameId: reference.id };
+      const columns = [[reference]];
+      const starts = [];
+      for (const [kind, label] of [["minimal", "최소 수정안"], ["layout", "배치 변경안"]]) {
+        const { copies, byId } = await copyJourney(source, label, copyFrame);
+        columns.push(copies);
+        const frame = (id) => byId.get(id);
+        const getNode = (sourceFrameId, nodeId) => {
+          var _a;
+          const node = byId.get(nodeId);
+          for (let cursor = node; cursor; cursor = cursor.parent) {
+            if (cursor.id === ((_a = byId.get(sourceFrameId)) == null ? void 0 : _a.id)) return node;
+            if (cursor.type === "PAGE") break;
+          }
+          throw Error("수정할 레이어를 복제한 여정에서 찾을 수 없습니다.");
+        };
+        await editVariant({ kind, frame, getNode, own });
+        result[kind] = { frameId: copies[0].id };
+        starts.push({ nodeId: copies[0].id, name: copies[0].name });
+      }
+      finish(columns, starts);
+      return result;
+    } catch (error) {
+      rollback();
+      throw error;
+    }
+  }
+  async function cloneAdoptedJourney(api, spec, validate) {
+    const { source, copyFrame, finish, rollback } = await openCopySession(api, spec);
+    try {
+      const { copies, byId } = await copyJourney(source, "채택안", copyFrame);
+      await validate(copies[0], byId);
+      finish([copies], [{ nodeId: copies[0].id, name: copies[0].name }]);
+      return byId;
+    } catch (error) {
+      rollback();
+      throw error;
+    }
+  }
+
+  // src/shipping-preview.js
+  var MAX_IMAGE_DIMENSION = 720;
+  var MAX_IMAGE_BYTES = 384 * 1024;
+  var variants = [
+    ["original", "원본"],
+    ["minimal", "최소 수정"],
+    ["layout", "비교 배치"]
+  ];
+  var controls = [
+    ["basic", "basicId", "일반배송 선택"],
+    ["fast", "paidId", "빠른배송 선택"],
+    ["continue", "continueId", "선택 없이 계속"]
+  ];
+  var won2 = (amount) => String(amount).replace(/\B(?=(\d{3})+(?!\d))/g, ",") + "원";
+  function assertPage(api, id) {
+    if (api.currentPage.id !== id) throw Error("검사한 페이지로 돌아간 뒤 다시 겹쳐보세요.");
+  }
+  function isWithin(node, ancestorId) {
+    for (let current = node; current; current = current.parent) {
+      if (current.id === ancestorId) return true;
+    }
+    return false;
+  }
+  function boundsOf(node) {
+    const bounds = node.absoluteBoundingBox;
+    if (!bounds || ![bounds.x, bounds.y, bounds.width, bounds.height].every(Number.isFinite) || bounds.width <= 0 || bounds.height <= 0) {
+      throw Error("미리보기에 필요한 프레임 또는 레이어의 위치를 읽을 수 없습니다.");
+    }
+    return bounds;
+  }
+  function clip(bounds, area) {
+    const x = Math.max(bounds.x, area.x);
+    const y = Math.max(bounds.y, area.y);
+    return {
+      x,
+      y,
+      width: Math.min(bounds.x + bounds.width, area.x + area.width) - x,
+      height: Math.min(bounds.y + bounds.height, area.y + area.height) - y
+    };
+  }
+  function normalizedBounds(control2, frame, frameBounds) {
+    let bounds = boundsOf(control2);
+    let withinFrame = false;
+    for (let current = control2; current; current = current.parent) {
+      if (current.id === frame.id) {
+        withinFrame = true;
+        break;
+      }
+      if (current.visible === false || current.opacity === 0) break;
+      if (current !== control2 && current.clipsContent) bounds = clip(bounds, boundsOf(current));
+    }
+    bounds = clip(bounds, frameBounds);
+    if (!withinFrame || bounds.width <= 0 || bounds.height <= 0)
+      throw Error("배송 옵션 또는 주문 버튼이 프레임 안에서 보이는지 확인하세요.");
+    return {
+      x: (bounds.x - frameBounds.x) / frameBounds.width,
+      y: (bounds.y - frameBounds.y) / frameBounds.height,
+      width: bounds.width / frameBounds.width,
+      height: bounds.height / frameBounds.height
+    };
+  }
+  function moved(before, after, frame) {
+    return Math.abs(before.x - after.x) * frame.width > 1 || Math.abs(before.y - after.y) * frame.height > 1 || Math.abs(before.width - after.width) * frame.width > 1 || Math.abs(before.height - after.height) * frame.height > 1;
+  }
+  function markersFor(original, column) {
+    if (column.key === "original") return [];
+    const markers = [];
+    for (const [index, spot] of column.hotspots.entries()) {
+      const { key, x, y, width, height } = spot;
+      const beforeSpot = original.hotspots[index];
+      const before = { x: beforeSpot.x, y: beforeSpot.y, width: beforeSpot.width, height: beforeSpot.height };
+      const relocated = moved(before, spot, column.frame);
+      const defaultChanged = original.defaultOption !== column.defaultOption;
+      const selected = key === column.defaultOption;
+      const originalTotal = original[original.defaultOption + "Total"];
+      const total = column[column.defaultOption + "Total"];
+      const details = [];
+      if (key === "continue") {
+        if (defaultChanged || total !== originalTotal)
+          details.push("별도 선택 없이 계속하면 주문 합계가 " + won2(originalTotal) + "에서 " + won2(total) + "으로 바뀝니다.");
+      } else if (defaultChanged) {
+        details.push((key === "basic" ? "일반배송" : "빠른배송") + (selected ? "이 기본으로 선택됩니다." : "의 기본 선택을 해제합니다."));
+      }
+      if (relocated) details.push("원본과 비교해 화면에서 위치 또는 크기가 바뀌었습니다.");
+      if (!details.length) continue;
+      markers.push(__spreadValues({
+        key,
+        label: key === "continue" ? "기본 주문 경로" : key === "basic" ? "일반배송" : "빠른배송",
+        detail: details.join(" "),
+        nodeId: column.nodes[index].id,
+        x,
+        y,
+        width,
+        height
+      }, relocated ? { from: before } : {}));
+    }
+    return markers;
+  }
+  function sameReceipt(column, spec) {
+    return column.frameId === spec.shippingFrameId && column.fastReviewId === spec.fastReviewId && column.basicReviewId === spec.basicReviewId && (/* @__PURE__ */ new Set([spec.shippingFrameId, spec.fastReviewId, spec.basicReviewId])).size === 3;
+  }
+  async function loadColumn(api, column, label, pageId) {
+    const spec = column == null ? void 0 : column.spec;
+    if (!spec || spec.pageId !== pageId || !sameReceipt(column, spec) || !["fast", "basic"].includes(spec.defaultOption) || ![spec.fastTotal, spec.basicTotal, spec.fastFee, spec.basicFee].every(Number.isSafeInteger)) {
+      throw Error("배송 방법과 주문 화면의 연결·금액을 다시 검사한 뒤 겹쳐보세요.");
+    }
+    const frameIds = [spec.shippingFrameId, spec.fastReviewId, spec.basicReviewId];
+    const controlIds = controls.map(([, field]) => spec[field]);
+    const nodes = await Promise.all([...frameIds, ...controlIds].map((id) => api.getNodeByIdAsync(id)));
+    if (nodes.some((node) => !node || node.removed || !isWithin(node, pageId)))
+      throw Error("겹쳐볼 배송 화면이나 근거 레이어가 변경되었습니다. 다시 검사하세요.");
+    const frames = nodes.slice(0, frameIds.length);
+    for (const frame of frames) {
+      const transform = frame.absoluteTransform;
+      if (frame.type !== "FRAME" || frame.visible === false || frame.opacity === 0 || transform && (Math.abs(transform[0][1]) > 1e-3 || Math.abs(transform[1][0]) > 1e-3 || transform[0][0] <= 0 || transform[1][1] <= 0)) {
+        throw Error("겹쳐보기는 회전하지 않은 가시 프레임에서 사용할 수 있습니다.");
+      }
+    }
+    const frameBounds = boundsOf(frames[0]);
+    const hotspots = controls.map(([key, , actionLabel], index) => __spreadValues({
+      key,
+      label: actionLabel
+    }, normalizedBounds(nodes[index + frames.length], frames[0], frameBounds)));
+    return { column, label, frames, nodes: nodes.slice(frames.length), hotspots };
+  }
+  async function exportImage(api, frame, pageId) {
+    assertPage(api, pageId);
+    if (frame.removed) throw Error("미리보기를 만드는 동안 프레임이 삭제되었습니다.");
+    const { width, height } = boundsOf(frame);
+    let scale = Math.min(2, MAX_IMAGE_DIMENSION / Math.max(width, height));
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const bytes = await frame.exportAsync({
+        format: "PNG",
+        contentsOnly: true,
+        useAbsoluteBounds: true,
+        constraint: { type: "SCALE", value: scale }
+      });
+      assertPage(api, pageId);
+      if (!(bytes == null ? void 0 : bytes.length)) break;
+      if (bytes.length <= MAX_IMAGE_BYTES) return { id: frame.id, width, height, png: api.base64Encode(bytes) };
+      scale *= Math.min(0.8, Math.sqrt(MAX_IMAGE_BYTES / bytes.length) * 0.9);
+    }
+    throw Error("프레임의 PNG를 미리보기 크기로 만들 수 없습니다.");
+  }
+  function renderShippingFrame(api, frame) {
+    const pageId = api.currentPage.id;
+    if (!frame || frame.type !== "FRAME" || !isWithin(frame, pageId))
+      throw Error("검사한 페이지의 프레임에서 미리보기를 다시 만드세요.");
+    return exportImage(api, frame, pageId);
+  }
+  async function renderShippingPreview(api, columns) {
+    const pageId = api.currentPage.id;
+    const candidates = await Promise.all(variants.map(([key, label]) => loadColumn(api, columns.find((column) => column.key === key), label, pageId)));
+    const preview = [];
+    for (const candidate of candidates) {
+      const { column, label, frames, hotspots, nodes } = candidate;
+      const [deliveryFrame, fastFrame, basicFrame] = frames;
+      const frame = await exportImage(api, deliveryFrame, pageId);
+      const fast = await exportImage(api, fastFrame, pageId);
+      const basic = await exportImage(api, basicFrame, pageId);
+      const { defaultOption, fastTotal, basicTotal, fastFee, basicFee } = column.spec;
+      const data = {
+        key: column.key,
+        label,
+        frame,
+        receipts: { fast, basic },
+        hotspots,
+        defaultOption,
+        fastTotal,
+        basicTotal,
+        fastFee,
+        basicFee,
+        status: column.status
+      };
+      preview.push(__spreadProps(__spreadValues({}, data), { markers: markersFor(preview[0], __spreadProps(__spreadValues({}, data), { nodes })) }));
+    }
+    return { columns: preview };
+  }
+
   // src/shipping.js
   var optionRoles = /* @__PURE__ */ new Set(["radio", "checkbox", "toggle"]);
   var fastLabel = /빠른\s*배송/;
@@ -816,6 +1152,9 @@
   }
 
   // src/shipping-panel.js
+  var variants2 = /* @__PURE__ */ new Set(["minimal", "layout"]);
+  var quoteFields = ["fastTotal", "basicTotal", "fastFee", "basicFee"];
+  var sameQuote = (a, b) => a && b && quoteFields.every((key) => a[key] === b[key]);
   function shippingStatus(report, spec) {
     var _a;
     const findings = ((_a = report == null ? void 0 : report.findings) == null ? void 0 : _a.filter((finding2) => finding2.pattern === shippingPattern)) || [];
@@ -830,10 +1169,32 @@
       if (!frame || frame.removed || frame.type !== "FRAME") return null;
       return inspectFrame(frame, confirmed);
     }
+    async function readColumns(entry, original) {
+      const columns = [];
+      for (const variant of entry.columns) {
+        const report = variant.key === "original" ? original : await readFrame(variant.frameId, false);
+        const spec = report == null ? void 0 : report.shipping;
+        columns.push(__spreadProps(__spreadValues(__spreadValues(__spreadValues({}, variant), spec ? {
+          frameId: spec.shippingFrameId,
+          fastReviewId: spec.fastReviewId,
+          basicReviewId: spec.basicReviewId
+        } : {}), shippingQuote(spec)), {
+          status: shippingStatus(report, spec),
+          spec
+        }));
+      }
+      return columns;
+    }
     function showExisting(rootId) {
       var _a;
       const comparison = (_a = comparisons.get(rootId)) == null ? void 0 : _a.result;
       if (comparison) post("shipping-comparison", { comparison, canRescan: true });
+    }
+    function invalidatePreview(rootId) {
+      const entry = comparisons.get(rootId);
+      if (!(entry == null ? void 0 : entry.preview)) return;
+      entry.preview = null;
+      post("shipping-preview-invalidated", { rootId });
     }
     async function update(create) {
       const { rootId, generation, confirmed } = context();
@@ -841,6 +1202,7 @@
       let entry = comparisons.get(rootId);
       if (!create && !entry) return;
       busy = true;
+      invalidatePreview(rootId);
       post("shipping-loading");
       try {
         const original = await readFrame(rootId, confirmed);
@@ -848,25 +1210,17 @@
           const spec = original == null ? void 0 : original.shipping;
           if (!spec) throw Error("두 배송 방법의 옵션, 기본 진행 버튼, 주문 확인 화면의 총액을 다시 확인하세요.");
           const designs = await makeShippingDesigns(api, spec);
-          entry = { referenceFrameId: designs.referenceFrameId, columns: [
+          entry = { referenceFrameId: designs.referenceFrameId, adopted: /* @__PURE__ */ new Map(), columns: [
             { key: "original", frameId: spec.shippingFrameId, fastReviewId: spec.fastReviewId, basicReviewId: spec.basicReviewId },
             __spreadValues({ key: "minimal" }, designs.minimal),
             __spreadValues({ key: "layout" }, designs.layout)
           ] };
           comparisons.set(rootId, entry);
         }
-        const columns = [];
-        for (const variant of entry.columns) {
-          const report = variant.key === "original" ? original : await readFrame(variant.frameId, false);
-          const spec = report == null ? void 0 : report.shipping;
-          columns.push(__spreadProps(__spreadValues(__spreadValues(__spreadValues({}, variant), spec ? {
-            frameId: spec.shippingFrameId,
-            fastReviewId: spec.fastReviewId,
-            basicReviewId: spec.basicReviewId
-          } : {}), shippingQuote(spec)), {
-            status: shippingStatus(report, spec)
-          }));
-        }
+        const columns = (await readColumns(entry, original)).map((_a) => {
+          var _b = _a, { spec } = _b, column = __objRest(_b, ["spec"]);
+          return column;
+        });
         entry.result = __spreadProps(__spreadValues({ rootId, referenceFrameId: entry.referenceFrameId }, shippingQuote(original == null ? void 0 : original.shipping)), { columns });
         if (context().generation === generation) showExisting(rootId);
       } catch (error) {
@@ -878,26 +1232,132 @@
         busy = false;
       }
     }
-    async function focus({ type, key, option }) {
+    function previewError(request, error, fallback) {
+      console.error("FairFlow shipping preview", error);
+      if (context().generation === request.generation)
+        post("shipping-preview-error", { rootId: request.rootId, message: (error == null ? void 0 : error.message) || fallback });
+    }
+    async function preview() {
+      const request = context();
+      const { rootId, generation, confirmed } = request;
+      const entry = comparisons.get(rootId);
+      if (busy || !(entry == null ? void 0 : entry.result)) return;
+      busy = true;
+      entry.preview = null;
+      post("shipping-preview-loading", { rootId });
+      try {
+        const original = await readFrame(rootId, confirmed);
+        const columns = await readColumns(entry, original);
+        const rendered = await renderShippingPreview(api, columns);
+        entry.preview = rendered;
+        if (context().generation === generation) {
+          post("shipping-preview-result", { rootId, preview: __spreadProps(__spreadValues({}, rendered), { adopted: entry.lastAdopted }) });
+        }
+      } catch (error) {
+        previewError(request, error, "배송 화면을 표시할 수 없습니다.");
+      } finally {
+        busy = false;
+      }
+    }
+    async function verifySnapshot(shown, spec) {
+      if (!sameQuote(shown, spec) || spec.defaultOption !== shown.defaultOption) return false;
+      const ids = [spec.shippingFrameId, spec.fastReviewId, spec.basicReviewId];
+      const snapshots = [shown.frame, shown.receipts.fast, shown.receipts.basic];
+      for (const [index, id] of ids.entries()) {
+        const before = snapshots[index];
+        if (id !== before.id) return false;
+        const after = await renderShippingFrame(api, await api.getNodeByIdAsync(id));
+        if (after.width !== before.width || after.height !== before.height || after.png !== before.png) return false;
+      }
+      return true;
+    }
+    async function adopt(key) {
+      var _a;
+      const request = context();
+      const { rootId, generation, confirmed } = request;
+      const entry = comparisons.get(rootId);
+      const shown = (_a = entry == null ? void 0 : entry.preview) == null ? void 0 : _a.columns.find((column) => column.key === key);
+      if (busy || !shown || !variants2.has(key)) return;
+      busy = true;
+      post("shipping-preview-loading", { rootId, operation: "adopt" });
+      try {
+        let adopted = entry.adopted.get(key);
+        if (adopted) {
+          const existing = await api.getNodeByIdAsync(adopted.frameId);
+          if (!existing || existing.removed) adopted = null;
+        }
+        if (!adopted) {
+          const original = await readFrame(rootId, confirmed);
+          const proposal = await readFrame(shown.frame.id, false);
+          const spec = proposal == null ? void 0 : proposal.shipping;
+          if (!spec || spec.defaultOption !== "basic" || !sameQuote(original == null ? void 0 : original.shipping, spec) || shippingStatus(proposal, spec) !== "signal_absent") {
+            throw Error("일반배송 기본값, 원본과 같은 요금, 두 주문 경로를 확인한 뒤 채택하세요.");
+          }
+          if (!await verifySnapshot(shown, spec)) throw Error("미리보기 이후 화면이 바뀌었습니다. 다시 겹쳐 본 뒤 채택하세요.");
+          const frameIds = [spec.shippingFrameId, spec.fastReviewId, spec.basicReviewId];
+          const byId = await cloneAdoptedJourney(
+            api,
+            { pageId: spec.pageId, frameId: spec.shippingFrameId, frameIds },
+            async (frame2, copies) => {
+              const report = await inspectFrame(frame2, true);
+              const copied = report == null ? void 0 : report.shipping;
+              if (!sameQuote(spec, copied) || copied.defaultOption !== "basic" || copied.fastReviewId !== copies.get(spec.fastReviewId).id || copied.basicReviewId !== copies.get(spec.basicReviewId).id || shippingStatus(report, copied) !== "signal_absent") {
+                throw Error("채택안의 총액과 주문 경로를 다시 확인하지 못했습니다.");
+              }
+            }
+          );
+          const frame = byId.get(spec.shippingFrameId);
+          adopted = {
+            key,
+            frameId: frame.id,
+            name: frame.name,
+            fastReviewId: byId.get(spec.fastReviewId).id,
+            basicReviewId: byId.get(spec.basicReviewId).id
+          };
+          entry.adopted.set(key, adopted);
+        }
+        entry.lastAdopted = adopted;
+        if (context().generation === generation) {
+          await revealNodes([adopted.frameId], generation);
+          post("shipping-adopted", { rootId, adopted });
+        }
+      } catch (error) {
+        previewError(request, error, "채택안을 만들 수 없습니다.");
+      } finally {
+        busy = false;
+      }
+    }
+    async function focus({ type, key, option, marker }) {
+      var _a, _b;
       if (busy) return;
-      const { rootId, generation } = context();
+      const request = context();
+      const { rootId, generation } = request;
       const entry = comparisons.get(rootId);
       if (!(entry == null ? void 0 : entry.result)) return;
       let ids;
-      if (type === "shipping-overview") {
+      const previewFocus = type === "shipping-preview-focus" || type === "shipping-adopt-focus";
+      if (type === "shipping-preview-focus") {
+        const change = (_b = (_a = entry.preview) == null ? void 0 : _a.columns.find((column) => column.key === key)) == null ? void 0 : _b.markers.find((item) => item.key === marker);
+        if (change) ids = [change.nodeId];
+      } else if (type === "shipping-adopt-focus") {
+        const adopted = entry.adopted.get(key);
+        if (adopted) ids = [adopted.frameId];
+      } else if (type === "shipping-overview") {
         ids = [entry.referenceFrameId || entry.columns[0].frameId, ...entry.columns.slice(1).map((column) => column.frameId)];
       } else {
         const column = entry.result.columns.find((item) => item.key === key);
         if (!column || option != null && option !== "fast" && option !== "basic") return;
         ids = [option === "fast" ? column.fastReviewId : option === "basic" ? column.basicReviewId : column.frameId];
       }
+      if (!ids) return;
       try {
         await revealNodes(ids, generation);
       } catch (error) {
-        post("shipping-error", { message: "선택한 비교 화면을 열 수 없습니다. 수정안이 남아 있는지 확인하세요." });
+        if (previewFocus) previewError(request, null, "변경 레이어를 열 수 없습니다. 미리보기를 다시 만드세요.");
+        else post("shipping-error", { message: "선택한 비교 화면을 열 수 없습니다. 수정안이 남아 있는지 확인하세요." });
       }
     }
-    return { update, focus, showExisting, get busy() {
+    return { update, preview, adopt, focus, showExisting, invalidatePreview, get busy() {
       return busy;
     } };
   }
@@ -1064,6 +1524,7 @@
           shipping: spec ? shippingQuote(spec) : null,
           shippingIssue: hasFastShipping2 && !spec ? "여정의 시작점을 확인하고, 일반·빠른배송과 기본 진행 버튼을 총액이 표시된 주문 확인 화면에 각각 연결하세요." : null
         } : {}));
+        shipping == null ? void 0 : shipping.invalidatePreview(frame.id);
         shipping == null ? void 0 : shipping.showExisting(frame.id);
         proposals == null ? void 0 : proposals.showExisting(frame.id);
       } catch (error) {
@@ -1120,8 +1581,16 @@
         case "shipping-rescan":
           if (!(proposals == null ? void 0 : proposals.busy)) return shipping == null ? void 0 : shipping.update(message.type === "shipping-create");
           break;
+        case "shipping-preview":
+          if (!(proposals == null ? void 0 : proposals.busy)) return shipping == null ? void 0 : shipping.preview();
+          break;
+        case "shipping-adopt":
+          if (!(proposals == null ? void 0 : proposals.busy)) return shipping == null ? void 0 : shipping.adopt(message.key);
+          break;
         case "shipping-focus":
         case "shipping-overview":
+        case "shipping-preview-focus":
+        case "shipping-adopt-focus":
           if (!(proposals == null ? void 0 : proposals.busy)) return shipping == null ? void 0 : shipping.focus(message);
           break;
         case "proposal-create":
@@ -1137,137 +1606,6 @@
     api.on("selectionchange", () => {
       if (ready && !rootId && selectedFrame()) return scan(true);
     });
-  }
-
-  // src/proposal-frames.js
-  var GUTTER = 96;
-  function canvasBounds(node) {
-    return node.absoluteBoundingBox || { x: node.x, y: node.y, width: node.width, height: node.height };
-  }
-  function positionOnCanvas(node, x, y) {
-    const rect = canvasBounds(node);
-    node.x += x - rect.x;
-    node.y += y - rect.y;
-  }
-  function roomToRight(existing, x, y, width, height) {
-    for (const rect of existing.map(canvasBounds).sort((a, b) => a.x - b.x)) {
-      if (rect.y + rect.height + GUTTER <= y || rect.y >= y + height + GUTTER || rect.x + rect.width + GUTTER <= x || rect.x >= x + width + GUTTER) continue;
-      x = rect.x + rect.width + GUTTER;
-    }
-    return x;
-  }
-  function indexCopy(source, copy, byId, sources) {
-    if (source.type !== copy.type) throw Error("복제한 레이어의 구조가 원본과 달라 연결을 유지할 수 없습니다.");
-    byId.set(source.id, copy);
-    sources.push(source);
-    const original = source.children || [];
-    const cloned = copy.children || [];
-    if (original.length !== cloned.length) throw Error("복제한 레이어의 구조가 원본과 달라 연결을 유지할 수 없습니다.");
-    for (let index = 0; index < original.length; index++) indexCopy(original[index], cloned[index], byId, sources);
-  }
-  function mapAction(action, byId) {
-    if (action.type === "CONDITIONAL") {
-      return __spreadProps(__spreadValues({}, action), { conditionalBlocks: action.conditionalBlocks.map((block) => __spreadProps(__spreadValues({}, block), {
-        actions: block.actions.map((next) => mapAction(next, byId))
-      })) });
-    }
-    const destination = action.type === "NODE" && byId.get(action.destinationId);
-    return destination ? __spreadProps(__spreadValues({}, action), { destinationId: destination.id }) : action;
-  }
-  async function wireCopies(sources, byId) {
-    var _a;
-    for (const source of sources) {
-      if (!((_a = source.reactions) == null ? void 0 : _a.length)) continue;
-      const copy = byId.get(source.id);
-      const reactions = source.reactions.map((reaction) => ({
-        trigger: reaction.trigger,
-        actions: (reaction.actions || (reaction.action ? [reaction.action] : [])).map((action) => mapAction(action, byId))
-      }));
-      const originalCopy = (copy.reactions || []).map((reaction) => ({ trigger: reaction.trigger, actions: reaction.actions }));
-      if (JSON.stringify(reactions) !== JSON.stringify(originalCopy)) await copy.setReactionsAsync(reactions);
-    }
-  }
-  function arrangeBoard(existing, source, columns) {
-    const anchor = canvasBounds(source);
-    const widths = columns.map((column) => Math.max(...column.map((frame) => canvasBounds(frame).width)));
-    const height = Math.max(...columns.map((column) => column.reduce((total, frame) => total + canvasBounds(frame).height + GUTTER, -GUTTER)));
-    const width = widths.reduce((total, size) => total + size + GUTTER, -GUTTER);
-    let x = roomToRight(existing, anchor.x + anchor.width + GUTTER, anchor.y, width, height);
-    for (const [index, column] of columns.entries()) {
-      let y = anchor.y;
-      for (const frame of column) {
-        positionOnCanvas(frame, x, y);
-        y += canvasBounds(frame).height + GUTTER;
-      }
-      x += widths[index] + GUTTER;
-    }
-  }
-  async function cloneProposal(api, spec, editVariant) {
-    const page = api.currentPage;
-    if (page.id !== spec.pageId) throw Error("검사한 페이지에서 수정안을 만들어 주세요.");
-    const ids = [.../* @__PURE__ */ new Set([spec.frameId, ...spec.frameIds])];
-    const source = await Promise.all(ids.map((id) => api.getNodeByIdAsync(id)));
-    if (source.some((frame) => {
-      var _a;
-      return !frame || frame.removed || frame.type !== "FRAME" || ((_a = frame.parent) == null ? void 0 : _a.id) !== page.id;
-    })) {
-      throw Error("수정할 여정의 화면이 모두 같은 페이지의 최상위 프레임이어야 합니다.");
-    }
-    const existing = page.children.slice();
-    const owned = [];
-    const names = new Set(existing.map((node) => node.name));
-    function copyFrame(frame, label) {
-      const copied = frame.clone();
-      owned.push(copied);
-      const title = frame.name + " · " + label;
-      let name = title;
-      let index = 2;
-      while (names.has(name)) name = title + " " + index++;
-      names.add(name);
-      copied.name = name;
-      copied.locked = false;
-      return copied;
-    }
-    try {
-      const reference = copyFrame(source[0], "원본 · 생성 시점");
-      const referenceById = /* @__PURE__ */ new Map(), referenceSources = [];
-      indexCopy(source[0], reference, referenceById, referenceSources);
-      await wireCopies(referenceSources, referenceById);
-      const result = { referenceFrameId: reference.id };
-      const columns = [[reference]];
-      const starts = [];
-      for (const [kind, label] of [["minimal", "최소 수정안"], ["layout", "배치 변경안"]]) {
-        const copies = source.map((node) => copyFrame(node, label));
-        columns.push(copies);
-        const byId = /* @__PURE__ */ new Map(), sources = [];
-        for (const [index, node] of source.entries()) indexCopy(node, copies[index], byId, sources);
-        await wireCopies(sources, byId);
-        const frame = (id) => byId.get(id);
-        const getNode = (sourceFrameId, nodeId) => {
-          var _a;
-          const node = byId.get(nodeId);
-          for (let cursor = node; cursor; cursor = cursor.parent) {
-            if (cursor.id === ((_a = byId.get(sourceFrameId)) == null ? void 0 : _a.id)) return node;
-            if (cursor.type === "PAGE") break;
-          }
-          throw Error("수정할 레이어를 복제한 여정에서 찾을 수 없습니다.");
-        };
-        await editVariant({ kind, frame, getNode, own: (node) => {
-          owned.push(node);
-          return node;
-        } });
-        result[kind] = { frameId: copies[0].id };
-        starts.push({ nodeId: copies[0].id, name: copies[0].name });
-      }
-      if (api.currentPage.id !== page.id) throw Error("수정안을 만드는 동안 페이지가 바뀌었습니다.");
-      arrangeBoard(existing, source[0], columns);
-      const generated = new Set(owned.map((node) => node.id));
-      page.flowStartingPoints = [...page.flowStartingPoints.filter((point) => !generated.has(point.nodeId)), ...starts];
-      return result;
-    } catch (error) {
-      for (const node of owned.reverse()) if (!node.removed) node.remove();
-      throw error;
-    }
   }
 
   // src/shipping-design.js
@@ -1370,11 +1708,11 @@
       wrapper.y = top;
     }
   }
-  async function wireCopies2(frames, controls, destinations2, fastId, basicId, defaultId = basicId) {
+  async function wireCopies2(frames, controls2, destinations2, fastId, basicId, defaultId = basicId) {
     const desired = /* @__PURE__ */ new Map([
-      [controls.paid.id, fastId],
-      [controls.basic.id, basicId],
-      [controls.next.id, defaultId]
+      [controls2.paid.id, fastId],
+      [controls2.basic.id, basicId],
+      [controls2.next.id, defaultId]
     ]);
     const found = /* @__PURE__ */ new Set();
     const receipts = /* @__PURE__ */ new Set([fastId, basicId]);
@@ -1409,7 +1747,7 @@
       for (const child of node.children || []) await visit(child, scope);
     }
     for (const frame of frames) await visit(frame, null);
-    for (const control2 of [controls.paid, controls.basic, controls.next]) {
+    for (const control2 of [controls2.paid, controls2.basic, controls2.next]) {
       if (found.has(control2.id)) continue;
       if ((control2.reactions || []).some((r) => {
         var _a;
