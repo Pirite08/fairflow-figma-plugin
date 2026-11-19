@@ -42,3 +42,5 @@ npm test
 ```
 
 `npm run build`는 `src/main.js`에서 Figma가 읽는 `dist/code.js`를 생성합니다. 패널은 `ui.html`입니다. 매니페스트의 ID는 로컬 개발용이며, Community에 게시할 때는 Figma가 발급한 ID를 사용합니다. [Figma 플러그인 매니페스트](https://developers.figma.com/docs/plugins/manifest/)
+
+데스크톱에서 세 유형을 재현하려면 `npm run build:qa`로 테스트용 플러그인을 만들고 빈 디자인 파일에서 실행하세요. 빠른배송, 멤버십, 상품 가격 여정을 만들고 패널에서 근거 레이어를 선택한 뒤 수정 전후의 판정을 비교합니다. [데스크톱 테스트 사용법](qa/README.md)

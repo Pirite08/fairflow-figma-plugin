@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "esbuild src/main.js --bundle --format=iife --target=es2017 --charset=utf8 --outfile=dist/code.js",
+    "build:qa": "node qa/build.mjs",
     "pretest": "npm run build",
     "test": "node --test"
   },
