@@ -1,12 +1,12 @@
 import { readJourney } from "./reader.js";
 import { analyzeJourney } from "./analyze.js";
 import { startPanel } from "./controller.js";
-import { hasFastShipping, readShippingScenario } from "./shipping.js";
+import { readShippingScenario } from "./shipping.js";
 import { createShippingDesigns } from "./shipping-design.js";
 import { createHierarchyProposals, readHierarchyProposal } from "./hierarchy-proposals.js";
 import { createPricingProposals, readPricingProposal } from "./pricing-proposals.js";
 
-figma.showUI(__html__, { width: 420, height: 620, themeColors: true });
+figma.showUI(__html__, { width: 540, height: 700, themeColors: true });
 startPanel(figma, async (frame, startConfirmedByDesigner) => {
   const journey = await readJourney(figma, frame);
   if (startConfirmedByDesigner) journey.flow_start_confirmed = true;
@@ -34,7 +34,6 @@ startPanel(figma, async (frame, startConfirmedByDesigner) => {
     warnings: journey.warnings || [],
     findings,
     shipping: readShippingScenario(journey, figma.currentPage.id),
-    hasFastShipping: hasFastShipping(journey),
     proposals: {
       hierarchy: readHierarchyProposal(journey, findings, figma.currentPage.id),
       price: readPricingProposal(journey, findings, figma.currentPage.id)

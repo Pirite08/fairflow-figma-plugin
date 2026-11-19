@@ -1083,9 +1083,6 @@
     const matches = nodes.filter(predicate);
     return matches.length === 1 ? matches[0] : null;
   }
-  function hasFastShipping(journey) {
-    return journey.states.some((state) => state.nodes.some((node) => optionRoles.has(node.role) && fastLabel.test(node.text)));
-  }
   function reviewTotal(state) {
     const label = state && only(joinPriceRows(state).nodes, (node) => totalText.test(node.text) && money(node) !== null);
     const amount = label ? money(label) : null;
@@ -1482,6 +1479,11 @@
       const selection = api.currentPage.selection;
       return selection.length === 1 && selection[0].type === "FRAME" ? selection[0] : null;
     };
+    const postSelection = () => {
+      var _a, _b;
+      const frame = selectedFrame();
+      post("selection", { frameId: (_a = frame == null ? void 0 : frame.id) != null ? _a : null, name: (_b = frame == null ? void 0 : frame.name) != null ? _b : null });
+    };
     const panelContext = {
       api,
       inspectFrame,
@@ -1517,13 +1519,10 @@
             evidenceByState.get(item.state_id).add(item.node_id);
           }
         }
-        const _a = result, { shipping: spec, hasFastShipping: hasFastShipping2, proposals: _specs } = _a, report = __objRest(_a, ["shipping", "hasFastShipping", "proposals"]);
+        const _a = result, { shipping: spec, proposals: _specs } = _a, report = __objRest(_a, ["shipping", "proposals"]);
         post("result", __spreadValues(__spreadValues(__spreadProps(__spreadValues({}, report), {
           rootId: frame.id
-        }), proposals ? { proposals: proposalOffers(result) } : {}), shipping ? {
-          shipping: spec ? shippingQuote(spec) : null,
-          shippingIssue: hasFastShipping2 && !spec ? "여정의 시작점을 확인하고, 일반·빠른배송과 기본 진행 버튼을 총액이 표시된 주문 확인 화면에 각각 연결하세요." : null
-        } : {}));
+        }), proposals ? { proposals: proposalOffers(result) } : {}), shipping ? { shipping: spec ? shippingQuote(spec) : null } : {}));
         shipping == null ? void 0 : shipping.invalidatePreview(frame.id);
         shipping == null ? void 0 : shipping.showExisting(frame.id);
         proposals == null ? void 0 : proposals.showExisting(frame.id);
@@ -1564,6 +1563,7 @@
       switch (message.type) {
         case "ready":
           ready = true;
+          postSelection();
           return scan(true);
         case "scan-selection":
           return scan(true);
@@ -1604,7 +1604,9 @@
       }
     };
     api.on("selectionchange", () => {
-      if (ready && !rootId && selectedFrame()) return scan(true);
+      if (!ready) return;
+      postSelection();
+      if (!rootId && selectedFrame()) return scan(true);
     });
   }
 
@@ -2290,7 +2292,7 @@
   }
 
   // src/main.js
-  figma.showUI(__html__, { width: 420, height: 620, themeColors: true });
+  figma.showUI(__html__, { width: 540, height: 700, themeColors: true });
   startPanel(figma, async (frame, startConfirmedByDesigner) => {
     const journey = await readJourney(figma, frame);
     if (startConfirmedByDesigner) journey.flow_start_confirmed = true;
@@ -2319,7 +2321,6 @@
       warnings: journey.warnings || [],
       findings,
       shipping: readShippingScenario(journey, figma.currentPage.id),
-      hasFastShipping: hasFastShipping(journey),
       proposals: {
         hierarchy: readHierarchyProposal(journey, findings, figma.currentPage.id),
         price: readPricingProposal(journey, findings, figma.currentPage.id)

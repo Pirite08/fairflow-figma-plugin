@@ -111,11 +111,15 @@
     );
   }
   async function scan(id, rootName) {
-    const button = query(id);
-    await until(
-      () => !button.disabled && !button.hidden,
-      "검사 버튼 비활성 " + id,
-    );
+    const button = await until(() => {
+      const control = query(id);
+      if (control && !control.disabled && !control.hidden) return control;
+      if (id === "#scan-selection" && query(".summary h1")?.textContent === rootName) {
+        const rescan = query("#scan");
+        if (rescan && !rescan.disabled && !rescan.hidden) return rescan;
+      }
+      return null;
+    }, "검사 버튼 비활성 " + id);
     lastError = null;
     const before = resultCount;
     button.click();
@@ -240,7 +244,12 @@
     log.passed = true;
   }
   const shippingRow = (key) => query('[data-shipping-key="' + key + '"]');
+  function openAdvancedTools() {
+    const tools = query(".advanced-tools");
+    if (tools && !tools.open) tools.querySelector("summary")?.click();
+  }
   async function compareShipping(selector) {
+    openAdvancedTools();
     const button = await until(() => {
       const control = query(selector);
       return control && !control.disabled && control;
@@ -258,6 +267,7 @@
     await scan("#scan-selection", rootName);
     log.diagnostics = (await command("read-journey", "shipping")).capture;
     cardFor(cases[0], "risk_signal");
+    openAdvancedTools();
     const original = { key: "original", frameId: board.start, fastReviewId: board.review, basicReviewId: board.freeReview };
     const originalBefore = (await command("inspect-shipping", "shipping", null, [original])).shipping[0];
     const action = await until(
@@ -374,6 +384,7 @@
     return data.getUint32(16) > 0 && data.getUint32(20) > 0;
   }
   async function clickReady(selector, description = selector) {
+    openAdvancedTools();
     const button = await until(() => {
       const control = query(selector);
       return control && !control.disabled && !control.hidden && control;
@@ -476,12 +487,17 @@
       }
     }
 
-    await clickReady("#shipping-adopt", "이 안 채택");
-    const { adopted } = await until(
-      () => lastAdoptedShipping?.rootId === board.start && lastAdoptedShipping,
-      "배송 수정안 채택 결과가 없습니다.",
-      30000,
-    );
+    let adopted = preview.adopted?.key === "layout" ? preview.adopted : null;
+    if (adopted) {
+      await clickReady("#shipping-adopt-focus", "채택한 안 보기");
+    } else {
+      await clickReady("#shipping-adopt", "이 안 채택");
+      ({ adopted } = await until(
+        () => lastAdoptedShipping?.rootId === board.start && lastAdoptedShipping,
+        "배송 수정안 채택 결과가 없습니다.",
+        30000,
+      ));
+    }
     check(adopted.key === "layout", "선택한 배치 변경안이 채택되지 않았습니다.");
     const variantIds = new Set(preview.columns.flatMap(row => [row.frame.id, row.receipts.basic.id, row.receipts.fast.id]));
     check(new Set([adopted.frameId, adopted.basicReviewId, adopted.fastReviewId]).size === 3 &&
@@ -515,6 +531,7 @@
     log.passed = true;
   }
   async function compareProposal(kind, action) {
+    openAdvancedTools();
     const selector = "#" + kind + "-" + action;
     const control = await until(() => {
       const button = query(selector);

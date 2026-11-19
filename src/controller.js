@@ -16,6 +16,10 @@ export function startPanel(api, inspectFrame, makeShippingDesigns, proposalBuild
     const selection = api.currentPage.selection;
     return selection.length === 1 && selection[0].type === "FRAME" ? selection[0] : null;
   };
+  const postSelection = () => {
+    const frame = selectedFrame();
+    post("selection", { frameId: frame?.id ?? null, name: frame?.name ?? null });
+  };
   const panelContext = {
     api, inspectFrame, post, revealNodes,
     context: () => ({ rootId, generation, confirmed: Boolean(rootId && confirmedRootId === rootId) })
@@ -49,17 +53,12 @@ export function startPanel(api, inspectFrame, makeShippingDesigns, proposalBuild
           evidenceByState.get(item.state_id).add(item.node_id);
         }
       }
-      const { shipping: spec, hasFastShipping, proposals: _specs, ...report } = result;
+      const { shipping: spec, proposals: _specs, ...report } = result;
       post("result", {
         ...report,
         rootId: frame.id,
         ...(proposals ? { proposals: proposalOffers(result) } : {}),
-        ...(shipping ? {
-          shipping: spec ? shippingQuote(spec) : null,
-          shippingIssue: hasFastShipping && !spec
-            ? "여정의 시작점을 확인하고, 일반·빠른배송과 기본 진행 버튼을 총액이 표시된 주문 확인 화면에 각각 연결하세요."
-            : null
-        } : {})
+        ...(shipping ? { shipping: spec ? shippingQuote(spec) : null } : {})
       });
       shipping?.invalidatePreview(frame.id);
       shipping?.showExisting(frame.id);
@@ -104,6 +103,7 @@ export function startPanel(api, inspectFrame, makeShippingDesigns, proposalBuild
     switch (message.type) {
       case "ready":
         ready = true;
+        postSelection();
         return scan(true);
       case "scan-selection":
         return scan(true);
@@ -144,6 +144,8 @@ export function startPanel(api, inspectFrame, makeShippingDesigns, proposalBuild
     }
   };
   api.on("selectionchange", () => {
-    if (ready && !rootId && selectedFrame()) return scan(true);
+    if (!ready) return;
+    postSelection();
+    if (!rootId && selectedFrame()) return scan(true);
   });
 }

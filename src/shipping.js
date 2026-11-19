@@ -11,10 +11,6 @@ function only(nodes, predicate) {
   return matches.length === 1 ? matches[0] : null;
 }
 
-export function hasFastShipping(journey) {
-  return journey.states.some(state => state.nodes.some(node => optionRoles.has(node.role) && fastLabel.test(node.text)));
-}
-
 function reviewTotal(state) {
   const label = state && only(joinPriceRows(state).nodes, node => totalText.test(node.text) && money(node) !== null);
   const amount = label ? money(label) : null;
