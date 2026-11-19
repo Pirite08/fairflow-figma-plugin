@@ -1,7 +1,7 @@
 // Load the shipping entry, controller, reader and analyzer exactly as the public plugin does.
 import "../src/main.js";
 import { readJourney } from "../src/reader.js";
-import { build, registered, state, useCurrentPage } from "./fixture/board.js";
+import { build, prepareProposalFixtures, proposalFixtures, registered, state, useCurrentPage } from "./fixture/board.js";
 
 function inView(rect) {
   const viewport = figma.viewport.bounds;
@@ -90,12 +90,52 @@ async function inspectShipping(board, columns) {
   return result;
 }
 
+async function componentFingerprint(id) {
+  const node = await figma.getNodeByIdAsync(id);
+  if (!node || node.type !== "INSTANCE") throw Error("원본 QA 컴포넌트 인스턴스가 없습니다.");
+  return { name: node.name, model: (await node.getMainComponentAsync())?.id, properties: node.componentProperties };
+}
+
+async function inspectProposals(board, kind, columns, referenceFrameId) {
+  const controls = await Promise.all(
+    (kind === "hierarchy" ? [board.paid, board.basic] : [board.card]).map(componentFingerprint),
+  );
+  const proposals = [];
+  for (const column of columns) {
+    const start = await frame(column.frameId);
+    const journey = await readJourney(figma, start);
+    const instances = [];
+    for (const control of controls) {
+      const node = start.findOne(child => child.name === control.name && child.type === "INSTANCE");
+      if (!node) throw Error("비교 시안에서 기존 컴포넌트가 없어졌습니다: " + control.name);
+      instances.push({ geometry: geometry(node), parentId: node.parent.id, fingerprint: await componentFingerprint(node.id) });
+    }
+    const screens = journey.states.map(state => state.frame_id);
+    const transitions = journey.transitions.map(edge => {
+      const state = journey.states.find(item => item.state_id === edge.from_state_id);
+      const control = state.nodes.find(node => node.node_id === edge.action.node_id);
+      return { from: state.frame_id, to: edge.to_state_id, label: control?.text, actionId: edge.action.node_id };
+    });
+    proposals.push({
+      key: column.key,
+      start: geometry(start),
+      components: instances,
+      screens,
+      transitions,
+      startText: journey.states[0].nodes.map(node => [node.text, node.style]),
+    });
+  }
+  const reference = referenceFrameId ? geometry(await frame(referenceFrameId)) : undefined;
+  return { controls, proposals, reference };
+}
+
 figma.ui.on("message", async (message) => {
   if (!message || message.type !== "qa-command") return;
   useCurrentPage();
   const { operation, journey, token } = message;
   try {
     if (operation === "build") await build();
+    if (operation === "prepare-proposals") await prepareProposalFixtures();
     if (["risk", "start", "fix", "edit"].includes(operation)) {
       if (!["shipping", "hierarchy", "price"].includes(journey))
         throw Error("Unknown fixture journey");
@@ -105,9 +145,17 @@ figma.ui.on("message", async (message) => {
         operation !== "edit",
       );
     }
-    const boards = registered();
+    const proposalOperation = operation === "start-proposal" || operation === "inspect-proposals";
+    const boards = proposalOperation ? proposalFixtures() : registered();
     const board = boards && boards[journey];
     const root = board && (await figma.getNodeByIdAsync(board.start));
+    if (operation === "start-proposal" && root) {
+      figma.currentPage.selection = [root];
+      figma.viewport.scrollAndZoomIntoView([root]);
+    }
+    const proposalData = operation === "inspect-proposals"
+      ? await inspectProposals(board, journey, message.columns, message.referenceFrameId)
+      : undefined;
     const shipping = operation === "inspect-shipping" && journey === "shipping"
       ? await inspectShipping(board, message.columns) : undefined;
     const capture = operation === "read-journey" && root ? await readJourney(figma, root) : undefined;
@@ -119,12 +167,12 @@ figma.ui.on("message", async (message) => {
     }
     let targetInView;
     if (message.targetId) {
-      if (!board || !Object.values(board).includes(message.targetId))
+      if (operation !== "pan-away-proposal" && (!board || !Object.values(board).includes(message.targetId)))
         throw Error("Unknown fixture layer.");
       const target = await figma.getNodeByIdAsync(message.targetId);
       const rect = target && target.absoluteBoundingBox;
       if (!rect) throw Error("Missing fixture layer bounds.");
-      if (operation === "pan-away") {
+      if (operation === "pan-away" || operation === "pan-away-proposal") {
         figma.viewport.center = {
           x: rect.x + rect.width + figma.viewport.bounds.width + 300,
           y: rect.y + rect.height / 2,
@@ -138,6 +186,7 @@ figma.ui.on("message", async (message) => {
       view: snapshot(),
       targetInView,
       shipping,
+      proposalData,
       capture,
       board,
       rootName: root && root.name,

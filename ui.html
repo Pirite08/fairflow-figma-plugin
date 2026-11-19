@@ -50,8 +50,8 @@
       color: #2e523a; background: #fff; font-weight: 650;
     }
     .confirm-start button:hover { border-color: #74947d; }
-    .shipping { margin-top: 12px; padding: 13px; border: 1px solid #cad7c9; border-radius: 9px; background: #fff; }
-    .shipping h2 { margin: 3px 0 5px; font-size: 15px; letter-spacing: -.35px; }
+    .shipping, .proposal { margin-top: 12px; padding: 13px; border: 1px solid #cad7c9; border-radius: 9px; background: #fff; }
+    .shipping h2, .proposal h2 { margin: 3px 0 5px; font-size: 15px; letter-spacing: -.35px; }
     .shipping-intro, .shipping-message { color: #45594b; font-size: 12px; }
     .shipping-message[role="alert"] { margin-top: 6px; color: #8d351f; }
     .shipping-action { margin-top: 9px; border-radius: 5px; padding: 6px 10px; font-weight: 650; }
@@ -74,6 +74,28 @@
     .shipping-amount { text-align: right; font-size: 15px; font-variant-numeric: tabular-nums; }
     .shipping-fee { text-align: right; }
     .shipping-row > .shipping-link { justify-self: end; grid-column: 2; font-size: 11px; }
+    .proposal-row { padding: 9px 0; border-top: 1px solid #e0e7de; }
+    .proposal-row:first-of-type { margin-top: 9px; }
+    .proposal-row-title { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; font-size: 13px; }
+    .proposal-status {
+      border-radius: 4px; padding: 1px 5px; background: #e5efe6; color: #386348; font-size: 11px; font-weight: 700;
+    }
+    .proposal-row[data-status="risk_signal"] .proposal-status { background: #fae9df; color: #8d351f; }
+    .proposal-row[data-status="needs_context"] .proposal-status { background: #f5edcf; color: #705016; }
+    .proposal-summary { margin-top: 5px; color: #405548; font-size: 12px; }
+    .proposal-steps { margin: 5px 0 0; padding: 0; list-style: none; }
+    .proposal-steps li + li { margin-top: 4px; }
+    .proposal-step {
+      display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 1px 8px;
+      width: 100%; padding: 6px 8px; border: 1px solid #dfe8de; border-radius: 5px; background: #f6f8f3;
+      color: #294d3a; text-align: left; overflow-wrap: anywhere;
+    }
+    .proposal-step:not(:disabled):hover { background: #edf3e9; border-color: #a2b9a4; }
+    .proposal-step span { grid-column: 1; }
+    .proposal-step::after { content: "↗"; grid-column: 2; grid-row: 1 / 3; font-size: 13px; }
+    .proposal-step:disabled::after { content: none; }
+    .proposal-step-label { font-size: 12px; font-weight: 700; }
+    .proposal-step-detail { font-size: 11px; color: #4d5e50; }
     .section-title { margin: 19px 0 9px; font-size: 15px; letter-spacing: -.35px; }
     .finding {
       margin-bottom: 8px; border: 1px solid #d4dcd5; border-radius: 9px; background: #fff;
@@ -155,11 +177,25 @@
       needs_context: { label: '정보 부족', order: 1 },
       signal_absent: { label: '신호 없음', order: 2 }
     };
-    const shippingNames = { original: '원본', minimal: '최소 수정', layout: '배치 변경' };
+    const variantNames = { original: '원본', minimal: '최소 수정', layout: '배치 변경' };
     const choiceNames = { default: '선택 없이 진행', basic: '일반배송 선택', fast: '빠른배송 선택' };
+    const proposalKinds = {
+      hierarchy: {
+        title: '선택 버튼 수정안', comparison: '버튼별 이동 경로', create: '계층구조 수정안 만들기',
+        intro: '기본 선택을 읽기 쉽게 고친 안과 두 선택을 함께 배치한 안을 만듭니다.',
+        empty: '이동 경로를 확인할 수 없습니다.'
+      },
+      price: {
+        title: '가격 표시 수정안', comparison: '필수 비용 표시 시점', create: '가격 수정안 만들기',
+        intro: '첫 가격에 필수 비용을 포함한 안과 비용 내역을 처음부터 보여 주는 안을 만듭니다.',
+        empty: '비용 표시 단계를 확인할 수 없습니다.'
+      }
+    };
     const won = new Intl.NumberFormat('ko-KR');
     let shippingHost = null;
-    let shippingRoot = null;
+    let proposalHost = null;
+    let inspectedRoot = null;
+    const proposalStates = new Map();
     let shippingOffer = null;
     let shippingIssue = '';
     let comparison = null;
@@ -194,6 +230,7 @@
 
     function showMessage(title, body, loading = false) {
       shippingHost = null;
+      proposalHost = null;
       const section = element('section', 'message');
       section.append(element('h1', '', title), element('p', '', body));
       content.replaceChildren(section);
@@ -207,7 +244,7 @@
       return Number.isSafeInteger(value) && value >= 0 ? won.format(value) + '원' : '확인 필요';
     }
 
-    function shippingButton(label, className, onClick) {
+    function panelButton(label, className, onClick) {
       const button = element('button', className, label);
       button.type = 'button';
       button.addEventListener('click', onClick);
@@ -215,7 +252,7 @@
     }
 
     function requestShipping(type, button) {
-      if (shippingBusy) return;
+      if (comparisonBusy()) return;
       shippingBusy = true;
       shippingError = '';
       button.disabled = true;
@@ -223,22 +260,26 @@
       send({ type });
     }
 
+    function comparisonBusy() {
+      return shippingBusy || [...proposalStates.values()].some(state => state.busy);
+    }
+
     function shippingColumn(column) {
       const row = element('article', 'shipping-row');
       row.dataset.shippingKey = column.key;
       row.dataset.status = column.status || 'unscanned';
       const title = element('div', 'shipping-row-title');
-      const name = shippingNames[column.key];
-      const frame = shippingButton(name, 'shipping-link', () => send({ type: 'shipping-focus', key: column.key }));
+      const name = variantNames[column.key];
+      const frame = panelButton(name, 'shipping-link', () => send({ type: 'shipping-focus', key: column.key }));
       frame.dataset.shippingFocus = 'frame';
-      frame.disabled = shippingBusy;
+      frame.disabled = comparisonBusy();
       frame.setAttribute('aria-label', name + ' 배송 화면 보기');
       title.append(frame, element('span', 'shipping-status', statuses[column.status]?.label || '미검사'));
       const total = element('strong', 'shipping-amount');
       const fee = element('span', 'shipping-fee');
       const defaultName = { fast: '빠른배송', basic: '일반배송' }[column.defaultOption] || '확인 필요';
       let option;
-      const receipt = shippingButton('주문 화면 보기', 'shipping-link', () => {
+      const receipt = panelButton('주문 화면 보기', 'shipping-link', () => {
         if (option) send({ type: 'shipping-focus', key: column.key, option });
       });
       receipt.dataset.shippingFocus = 'receipt';
@@ -254,7 +295,7 @@
         };
         total.textContent = money(read('Total'));
         fee.textContent = '배송비 ' + money(read('Fee'));
-        receipt.disabled = shippingBusy || !knownOption;
+        receipt.disabled = comparisonBusy() || !knownOption;
       }
       update();
       return { row, update };
@@ -269,7 +310,7 @@
       shippingHost.append(element('h2', '', comparison ? '배송안별 주문 총액' : '배송 옵션 수정안'));
       if (shippingIssue) shippingHost.append(element('p', 'shipping-intro', shippingIssue));
       if (comparison) {
-        const columns = comparison.columns.filter(column => Object.hasOwn(shippingNames, column.key)).map(shippingColumn);
+        const columns = comparison.columns.filter(column => Object.hasOwn(variantNames, column.key)).map(shippingColumn);
         const options = element('fieldset', 'shipping-options');
         options.append(element('legend', '', '배송 선택 조건'));
         for (const [key, label] of Object.entries(choiceNames)) {
@@ -290,21 +331,21 @@
           options.append(choice);
         }
         shippingHost.append(options, ...columns.map(column => column.row));
-        const rescan = shippingButton('수정안 재검사', 'shipping-action secondary', () => requestShipping('shipping-rescan', rescan));
+        const rescan = panelButton('수정안 재검사', 'shipping-action secondary', () => requestShipping('shipping-rescan', rescan));
         rescan.id = 'shipping-rescan';
-        rescan.disabled = shippingBusy || !comparison.canRescan;
-        const overview = shippingButton('캔버스에서 나란히 보기', 'shipping-action secondary', () => send({ type: 'shipping-overview' }));
+        rescan.disabled = comparisonBusy() || !comparison.canRescan;
+        const overview = panelButton('캔버스에서 나란히 보기', 'shipping-action secondary', () => send({ type: 'shipping-overview' }));
         overview.id = 'shipping-overview';
-        overview.disabled = shippingBusy;
+        overview.disabled = comparisonBusy();
         overview.title = '생성 시점의 원본 사본과 두 수정안 보기';
         const actions = element('div', 'shipping-actions');
         actions.append(overview, rescan);
         shippingHost.append(actions);
       } else if (shippingOffer) {
         shippingHost.append(element('p', 'shipping-intro', '일반배송을 기본값으로 둔 최소 수정안과 배송 옵션의 배치를 바꾼 수정안을 캔버스에 만듭니다.'));
-        const create = shippingButton('배송 수정안 만들기', 'shipping-action primary', () => requestShipping('shipping-create', create));
+        const create = panelButton('배송 수정안 만들기', 'shipping-action primary', () => requestShipping('shipping-create', create));
         create.id = 'shipping-create';
-        create.disabled = shippingBusy;
+        create.disabled = comparisonBusy();
         shippingHost.append(create);
       }
       if (shippingBusy || shippingError) {
@@ -314,8 +355,9 @@
       }
     }
 
-    function resetShipping() {
-      shippingRoot = null;
+    function resetComparisons() {
+      inspectedRoot = null;
+      proposalStates.clear();
       shippingOffer = null;
       shippingIssue = '';
       comparison = null;
@@ -326,15 +368,126 @@
 
     function shippingReply(message) {
       const replyRoot = message.rootId || message.comparison?.rootId;
-      if (!shippingRoot || (replyRoot && replyRoot !== shippingRoot)) return;
+      if (!inspectedRoot || (replyRoot && replyRoot !== inspectedRoot)) return;
       shippingBusy = message.type === 'shipping-loading';
       shippingError = message.type === 'shipping-error' ? message.message || '배송 수정안을 열 수 없습니다.' : '';
       if (message.type === 'shipping-comparison') {
         comparison = { ...message.comparison, canRescan: message.canRescan ?? message.comparison.canRescan };
         announcement.textContent = '배송안별 주문 총액을 표시했습니다.';
       }
+      renderComparisons();
+    }
+
+    function requestProposal(kind, operation, button) {
+      if (comparisonBusy()) return;
+      const state = proposalStates.get(kind);
+      state.busy = true;
+      state.error = '';
+      button.disabled = true;
+      showControls(true, true);
+      send({ type: 'proposal-' + operation, kind });
+    }
+
+    function proposalRow(kind, column) {
+      const row = element('article', 'proposal-row');
+      row.dataset.proposalKind = kind;
+      row.dataset.proposalKey = column.key;
+      row.dataset.status = Object.hasOwn(statuses, column.status) ? column.status : 'needs_context';
+      const name = variantNames[column.key];
+      const title = element('h3', 'proposal-row-title');
+      const focusFrame = panelButton(name, 'shipping-link', () =>
+        send({ type: 'proposal-focus', kind, key: column.key }));
+      focusFrame.disabled = comparisonBusy() || !column.frameId;
+      focusFrame.setAttribute('aria-label', name + ' 프레임 보기');
+      title.append(focusFrame, element('span', 'proposal-status', statuses[row.dataset.status].label));
+      row.append(title);
+      if (column.summary) row.append(element('p', 'proposal-summary', column.summary));
+      if (!column.steps?.length) {
+        if (!column.summary) row.append(element('p', 'proposal-summary', proposalKinds[kind].empty));
+        return row;
+      }
+      const steps = element(kind === 'price' ? 'ol' : 'ul', 'proposal-steps');
+      for (const step of column.steps) {
+        const li = element('li');
+        const button = panelButton('', 'proposal-step', () =>
+          send({ type: 'proposal-focus', kind, key: column.key, step: step.key }));
+        button.dataset.proposalStep = step.key;
+        button.disabled = comparisonBusy() || !step.frameId;
+        button.append(element('span', 'proposal-step-label', step.label));
+        if (step.detail) button.append(element('span', 'proposal-step-detail', step.detail));
+        li.append(button);
+        steps.append(li);
+      }
+      row.append(steps);
+      return row;
+    }
+
+    function renderProposals() {
+      if (!proposalHost) return;
+      proposalHost.replaceChildren();
+      for (const [kind, labels] of Object.entries(proposalKinds)) {
+        const state = proposalStates.get(kind);
+        if (!state || !(state.offer?.available || state.offer?.issue || state.comparison || state.error)) continue;
+        const card = element('section', 'proposal');
+        card.id = kind + '-proposal';
+        const heading = element('h2', '', state.comparison ? labels.comparison : labels.title);
+        heading.id = kind + '-proposal-title';
+        card.setAttribute('aria-labelledby', heading.id);
+        card.append(element('p', 'eyebrow', '유료 디자인 제안 · 미리보기'), heading);
+        if (state.comparison) {
+          for (const column of state.comparison.columns) {
+            if (Object.hasOwn(variantNames, column.key)) card.append(proposalRow(kind, column));
+          }
+          const overview = panelButton('캔버스에서 나란히 보기', 'shipping-action secondary', () =>
+            send({ type: 'proposal-overview', kind }));
+          overview.id = kind + '-overview';
+          overview.title = '생성 시점의 원본 사본과 두 수정안 보기';
+          overview.disabled = comparisonBusy();
+          const rescan = panelButton('수정안 재검사', 'shipping-action secondary', () =>
+            requestProposal(kind, 'rescan', rescan));
+          rescan.id = kind + '-rescan';
+          rescan.disabled = comparisonBusy();
+          const actions = element('div', 'shipping-actions');
+          actions.append(overview, rescan);
+          card.append(actions);
+        } else if (state.offer?.available) {
+          const create = panelButton(labels.create, 'shipping-action primary', () =>
+            requestProposal(kind, 'create', create));
+          create.id = kind + '-create';
+          create.disabled = comparisonBusy();
+          card.append(element('p', 'shipping-intro', labels.intro), create);
+        } else if (state.offer?.issue) {
+          card.append(element('p', 'shipping-intro', state.offer.issue));
+        }
+        if (state.busy || state.error) {
+          const text = state.error || (state.comparison ? '수정안을 다시 검사하고 있습니다.' : '수정안을 만들고 있습니다.');
+          const status = element('p', 'shipping-message', text);
+          status.setAttribute('role', state.error ? 'alert' : 'status');
+          card.append(status);
+        }
+        proposalHost.append(card);
+      }
+    }
+
+    function renderComparisons() {
       renderShipping();
-      if (shippingHost) showControls(true, shippingBusy);
+      renderProposals();
+      if (shippingHost || proposalHost) showControls(true, comparisonBusy());
+    }
+
+    function proposalReply(message) {
+      const { kind, type } = message;
+      const replyRoot = message.rootId || message.comparison?.rootId;
+      if (!Object.hasOwn(proposalKinds, kind) || !inspectedRoot || replyRoot !== inspectedRoot) return;
+      const state = proposalStates.get(kind);
+      if (!state) return;
+      state.busy = type === 'proposal-loading';
+      state.error = type === 'proposal-error' ? message.message || '수정안을 열 수 없습니다.' : '';
+      if (type === 'proposal-comparison') {
+        state.comparison = message.comparison;
+        announcement.textContent = proposalKinds[kind].comparison + ' 결과를 표시했습니다.';
+      }
+      renderComparisons();
     }
 
     function findingCard(finding) {
@@ -374,10 +527,14 @@
     }
 
     function showResult(result) {
-      if (result.rootId !== shippingRoot) resetShipping();
-      shippingRoot = result.rootId || null;
+      if (result.rootId !== inspectedRoot) resetComparisons();
+      inspectedRoot = result.rootId || null;
       shippingOffer = result.shipping || null;
       shippingIssue = result.shippingIssue || '';
+      for (const kind of Object.keys(proposalKinds)) {
+        const previous = proposalStates.get(kind);
+        proposalStates.set(kind, { ...previous, offer: result.proposals?.[kind] });
+      }
       const summary = element('section', 'summary');
       const counts = '화면 ' + result.stateCount + '개 · 연결 ' + result.transitionCount + '개';
       summary.append(element('p', 'eyebrow', '검사 시작 프레임'), element('h1', '', result.frameName), element('p', 'counts', counts));
@@ -396,8 +553,9 @@
       if (!findings.length) section.append(element('p', '', '판단할 수 있는 항목이 없습니다.'));
       shippingHost = element('section', 'shipping');
       shippingHost.id = 'shipping';
-      content.replaceChildren(summary, shippingHost, section);
-      renderShipping();
+      proposalHost = element('div');
+      content.replaceChildren(summary, shippingHost, proposalHost, section);
+      renderComparisons();
       if (result.warnings && result.warnings.length) {
         const warnings = element('details', 'warnings');
         warnings.append(element('summary', '', '검사 범위 안내 ' + result.warnings.length + '건'));
@@ -411,7 +569,6 @@
       notice.textContent = '';
       const riskCount = findings.filter(finding => finding.status === 'risk_signal').length;
       announcement.textContent = result.frameName + ' 검사 완료. 위험 신호 ' + riskCount + '건.';
-      showControls(true, false);
     }
 
     scan.addEventListener('click', () => send({ type: 'scan' }));
@@ -421,13 +578,16 @@
       if (!message) return;
       switch (message.type) {
         case 'result': showResult(message); break;
-        case 'empty': resetShipping(); showMessage('프레임을 선택하세요', message.message || 'Figma 캔버스에서 점검할 프레임을 하나 선택한 뒤 검사하세요.'); break;
+        case 'empty': resetComparisons(); showMessage('프레임을 선택하세요', message.message || 'Figma 캔버스에서 점검할 프레임을 하나 선택한 뒤 검사하세요.'); break;
         case 'loading': showMessage('여정을 읽고 있습니다', message.message || '프레임의 레이어와 프로토타입 연결을 확인하고 있습니다.', true); break;
         case 'error': showMessage('검사를 마치지 못했습니다', message.message || '시작 프레임을 선택한 뒤 다시 검사하세요.'); break;
         case 'notice': notice.textContent = message.message || ''; break;
         case 'shipping-loading':
         case 'shipping-comparison':
         case 'shipping-error': shippingReply(message); break;
+        case 'proposal-loading':
+        case 'proposal-comparison':
+        case 'proposal-error': proposalReply(message); break;
       }
     });
     showMessage('프레임을 선택하세요', 'Figma 캔버스에서 점검할 프레임을 하나 선택한 뒤 검사하세요.');

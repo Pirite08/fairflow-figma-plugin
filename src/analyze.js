@@ -18,11 +18,12 @@ export function money(node) {
   return values?.length === 1 ? Number(values[0].replace(/[^\d]/g, "")) : null;
 }
 
-const won = value => String(value).replace(/\B(?=(\d{3})+(?!\d))/g, ",") + "원";
+export const won = value => String(value).replace(/\B(?=(\d{3})+(?!\d))/g, ",") + "원";
 const compact = value => value.replace(/\s+/g, "").toLowerCase();
 const control = node => ["checkbox", "radio", "toggle", "switch"].includes(node.role);
 const button = node => ["button", "link"].includes(node.role);
-const feeText = /배송비|빠른\s*배송|포장비|예약\s*수수료|서비스\s*요금|이용\s*수수료|수수료|발권비/;
+export const feeText = /배송비|빠른\s*배송|포장비|예약\s*수수료|서비스\s*요금|이용\s*수수료|수수료|발권비/;
+export const uncertainFee = /(?:필수|의무|고정|정액)(?:은|는|가|이|적용|되지)?\s*(?:아[닌님니닙]|없|않|제외|X\b)|선택\s*(배송|사항)|조건부|변동|달라|다를|따라|상이|미정|별도\s*산정|지역별|주소별|무게별/i;
 export const totalText = /결제\s*(?:예정\s*)?(?:금액|총액)|총\s*(?:결제|금액|합계)|최종\s*(?:가격|금액)|주문\s*합계/;
 
 // Figma price rows often use separate label and value layers. Pair only a
@@ -137,7 +138,7 @@ function preselection(graph, terms) {
     "상품에서 옵션으로 이동하는 연결과 유료 항목의 선택 상태를 확인하세요.")];
 }
 
-function luminance(hex) {
+export function luminance(hex) {
   if (!/^#[0-9a-f]{6}$/i.test(hex || "")) return null;
   const rgb = hex.slice(1).match(/../g).map(c => parseInt(c, 16) / 255)
     .map(v => v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
@@ -201,14 +202,14 @@ function visualHierarchy(graph) {
     "가입, 구매 또는 해지 선택지가 함께 보이는 프레임을 포함하세요.")];
 }
 
-function offerPrice(state) {
+export function offerPrice(state) {
   const controls = new Map(state.nodes.filter(button).map(n => [n.node_id, n]));
   const isCard = n => /[가-힣a-z]/i.test(n.text.replace(/₩?\s*[\d,]+\s*원?/g, "")) &&
     !/결제|구매하기|장바구니|담기|선택|추가|옵션|동의|계속|신청|가입|주문하기/.test(n.text);
   // A single product label may put the included fee note after the total.
   const includesFee = /(?:^|\s)총(?:액|\s*가격)?\s*(?:₩\s*)?[\d,]+\s*원\s*[(（·,]?\s*(?:필수\s*)?(?:배송비|수수료|발권비)\s*포함\s*[)）.]?\s*$/;
   const isPrice = n => money(n) !== null && !totalText.test(n.text) &&
-    (!feeText.test(n.text) || includesFee.test(n.text)) && !/할인액|적립|쿠폰|정가/.test(n.text);
+    (!feeText.test(n.text) || includesFee.test(n.text)) && !/할인액|적립|쿠폰|정가|상품\s*소계/.test(n.text);
   const represented = new Set(), options = [];
   for (const n of state.nodes) {
     if (n.role !== "text" || !isPrice(n)) continue;
@@ -278,20 +279,31 @@ function prices(graph, terms) {
           (spec && spec.amount_krw !== feeAmount)) {
         checks.push(unresolved(proof)); continue;
       }
-      const negated = /(?:필수|의무|고정|정액)(?:은|는|가|이|적용|되지)?\s*(?:아[닌님니닙]|없|않|제외|X\b)|선택\s*(배송|사항)|조건부/i;
-      const variable = /변동|달라|다를|따라|상이|미정|별도\s*산정|지역별|주소별|무게별/;
       const feeNotes = [...start.nodes, ...checkout.nodes].filter(n => feeText.test(n.text));
-      if (feeNotes.some(n => negated.test(n.text) || variable.test(n.text))) {
+      if (feeNotes.some(n => uncertainFee.test(n.text))) {
         checks.push(unresolved(proof)); continue;
       }
       const mandatory = spec?.mandatory ?? (/필수|의무|모든\s*(주문|구매)/.test(fee.text) ? true : null);
       const fixed = spec?.known_at_first_price ?? (/고정|정액|일괄|일률/.test(fee.text) ? true : null);
+      const pricing = mandatory === true && fixed === true ? {
+        first: ref(start, first),
+        checkout: ref(checkout, total),
+        fee: { ...ref(checkout, fee), label: fee.text.match(feeText)?.[0], amount: feeAmount },
+        base: baseNode ? ref(checkout, baseNode) : null,
+        firstAmount,
+        finalAmount,
+        baseAmount: base
+      } : null;
       if (firstAmount === finalAmount) {
-        checks.push(finding(pattern, "signal_absent", "이 주문 경로는 첫 표시 가격과 배송비·수수료를 포함한 최종 금액이 " + won(finalAmount) + "으로 같습니다.",
-          "첫 가격과 주문 명세가 계속 일치하는지 확인하세요.", proof));
-      } else if (mandatory === true && fixed === true) {
-        checks.push(finding(pattern, "risk_signal", "첫 가격 " + won(firstAmount) + "에 확정된 필수 비용 " + won(feeAmount) + "이 빠져 주문 금액이 " + won(finalAmount) + "이 됩니다.",
-          "첫 가격에 총 " + won(finalAmount) + "을 표시하고 포함된 필수 비용을 함께 안내하세요.", proof));
+        const result = finding(pattern, "signal_absent", "이 주문 경로는 첫 표시 가격과 배송비·수수료를 포함한 최종 금액이 " + won(finalAmount) + "으로 같습니다.",
+          "첫 가격과 주문 명세가 계속 일치하는지 확인하세요.", proof);
+        checks.push(pricing ? { ...result, pricing } : result);
+      } else if (pricing) {
+        checks.push({
+          ...finding(pattern, "risk_signal", "첫 가격 " + won(firstAmount) + "에 확정된 필수 비용 " + won(feeAmount) + "이 빠져 주문 금액이 " + won(finalAmount) + "이 됩니다.",
+            "첫 가격에 총 " + won(finalAmount) + "을 표시하고 포함된 필수 비용을 함께 안내하세요.", proof),
+          pricing
+        });
       } else {
         const explicit = selectedFeeOnPath(graph, start, checkout, fee, sameProduct);
         if (mandatory !== true && explicit) {

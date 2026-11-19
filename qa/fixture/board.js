@@ -1,4 +1,5 @@
 const PAGE_KEY = "fairflowBoardV1";
+const PROPOSALS_KEY = "fairflowProposalFixturesV1";
 let page;
 export function useCurrentPage() {
   page = figma.currentPage;
@@ -147,6 +148,89 @@ async function link(node, dst) {
 export function registered() {
   const value = page.getPluginData(PAGE_KEY);
   return value ? JSON.parse(value) : null;
+}
+
+function textProperty(component, text, name) {
+  const key = component.addComponentProperty(name, "TEXT", text.characters);
+  text.componentPropertyReferences = { ...text.componentPropertyReferences, characters: key };
+}
+
+function proposalButton(owner, name, value, y, width, height, background, color, size, x) {
+  const component = mount(figma.createComponent(), page, "QA 컴포넌트 / " + name, x, owner.y + y);
+  component.resize(width, height);
+  component.fills = paint(background);
+  component.cornerRadius = 10;
+  const label = words(component, "버튼 문구", value, 14, 0, size, color, true);
+  label.y = Math.round((height - label.height) / 2);
+  textProperty(component, label, "Label");
+  return mount(component.createInstance(), owner, name, 22, y);
+}
+
+export function proposalFixtures() {
+  const value = page.getPluginData(PROPOSALS_KEY);
+  return value ? JSON.parse(value) : null;
+}
+
+export async function prepareProposalFixtures() {
+  const previous = proposalFixtures();
+  if (previous) {
+    const ids = [...Object.values(previous.hierarchy), ...Object.values(previous.price)];
+    if ((await Promise.all(ids.map(id => figma.getNodeByIdAsync(id)))).every(node => node && !node.removed)) return;
+  }
+  await fonts();
+  const x = page.children.reduce((edge, node) => Math.max(edge, node.x + node.width + 130), 0);
+  const gap = 420;
+  placed = [];
+  try {
+    const offer = screen("04A · 멤버십 제안", x, 0, "멤버십 / 선택", "멤버십 혜택", "혜택을 더하거나 기본 요금으로 이용하세요.");
+    const paidReview = receipt("04B · 멤버십 접수", x + gap, 0, "멤버십 / 확인", "멤버십 신청 완료", "월간 멤버십이 신청되었습니다.");
+    const basicReview = receipt("04C · 기본 요금 확인", x + 2 * gap, 0, "기본 요금 / 확인", "기본 요금 적용", "현재 이용 중인 요금이 유지됩니다.");
+    const paid = proposalButton(offer, "Button / 멤버십 신청", "월 3,000원 추가하고 계속", 246, 316, 52, green, white, 16, x + 3 * gap);
+    const basic = proposalButton(offer, "Button / 기본 요금", "기본 요금으로 계속", 325, 145, 22, white, "#CFD3D0", 9, x + 3 * gap);
+    await link(paid, paidReview);
+    await link(basic, basicReview);
+
+    const y = 620;
+    const product = screen("05A · 유리컵 첫 가격", x, y, "상품 / 보기", "오늘의 유리잔", "상품을 눌러 상세 정보를 확인하세요.");
+    const detail = screen("05B · 유리컵 상세", x + gap, y, "상품 / 상세", "유리컵 상세", "재질과 크기를 확인하세요.");
+    const checkout = screen("05C · 유리컵 결제", x + 2 * gap, y, "주문 / 금액", "결제 명세", "유리컵 한 개의 금액 내역입니다.");
+    words(detail, "상품 안내", "유리 소재 · 250mL", 22, 218, 18, ink, true);
+    const next = tile(detail, "Button / 주문 내역", "주문 내역 확인", 22, 356, 316, 50, green, white, 16)[0];
+    const template = mount(figma.createComponent(), page, "QA 컴포넌트 / 상품 카드", x + 3 * gap, y + 220);
+    template.resize(316, 160);
+    template.fills = paint(pale);
+    template.cornerRadius = 12;
+    words(template, "상품 이름", "유리컵", 17, 21, 19, ink, true);
+    textProperty(template, words(template, "첫 표시 가격", "29,900원", 17, 62, 26, green, true), "Price");
+    const feeSlot = words(template, "포함 비용 안내", "필수 배송비 포함", 17, 118, 12, muted);
+    textProperty(template, feeSlot, "Fee");
+    const visibility = template.addComponentProperty("Fee visible", "BOOLEAN", false);
+    feeSlot.componentPropertyReferences = { ...feeSlot.componentPropertyReferences, visible: visibility };
+    const card = mount(template.createInstance(), product, "상품 카드", 22, 211);
+    const summary = mount(figma.createComponent(), page, "QA 컴포넌트 / 주문 명세", x + 3 * gap, y + 420);
+    summary.resize(316, 165);
+    summary.fills = paint(white);
+    summary.cornerRadius = 12;
+    words(summary, "상품 가격", "상품 29,900원", 16, 18, 15, ink);
+    words(summary, "고정 비용", "필수 고정 배송비 3,000원", 16, 55, 15, ink);
+    box(summary, "구분선", 16, 93, 284, 1, pale);
+    words(summary, "결제 총액", "결제 예정 금액 32,900원", 16, 112, 18, green, true);
+    const order = mount(summary.createInstance(), checkout, "주문 명세", 22, 211);
+    await link(card, detail);
+    await link(next, checkout);
+
+    page.flowStartingPoints = extraStart(extraStart(page.flowStartingPoints, offer.id, offer.name), product.id, product.name);
+    page.setPluginData(PROPOSALS_KEY, JSON.stringify({
+      hierarchy: { start: offer.id, paid: paid.id, basic: basic.id, paidReview: paidReview.id, basicReview: basicReview.id },
+      price: { start: product.id, card: card.id, detail: detail.id, next: next.id, checkout: checkout.id, order: order.id },
+    }));
+    placed = null;
+  } catch (error) {
+    const nodes = placed || [];
+    placed = null;
+    for (const node of nodes.reverse()) if (!node.removed) node.remove();
+    throw error;
+  }
 }
 function focus(node) {
   page.selection = [node];

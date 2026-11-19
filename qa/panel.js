@@ -38,6 +38,7 @@
     lastComparison = null,
     comparisonCount = 0,
     lastError = null;
+  const proposalComparisons = new Map();
   window.addEventListener("message", (event) => {
     const message = getPluginMessage(event);
     if (!message) return;
@@ -49,7 +50,9 @@
       lastComparison = message.comparison;
       comparisonCount++;
     }
-    if (["error", "notice", "shipping-error"].includes(message.type))
+    if (message.type === "proposal-comparison")
+      proposalComparisons.set(message.kind, message.comparison);
+    if (["error", "notice", "shipping-error", "proposal-error"].includes(message.type))
       lastError = message.message;
     if (message.type === "qa-reply" && pending.has(message.token)) {
       const accept = pending.get(message.token);
@@ -57,7 +60,7 @@
       accept(message);
     }
   });
-  function command(operation, journey, targetId, columns) {
+  function command(operation, journey, targetId, columns, referenceFrameId) {
     const token = ++sequence;
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
@@ -77,6 +80,7 @@
             journey,
             targetId,
             columns,
+            referenceFrameId,
           },
         },
         "*",
@@ -355,27 +359,150 @@
     delete log.diagnostics;
     log.passed = true;
   }
+  async function compareProposal(kind, action) {
+    const selector = "#" + kind + "-" + action;
+    const control = await until(() => {
+      const button = query(selector);
+      return button && !button.disabled && button;
+    }, "디자인 제안 버튼을 찾지 못했습니다: " + selector);
+    const before = proposalComparisons.get(kind);
+    lastError = null;
+    control.click();
+    return until(() => {
+      const next = proposalComparisons.get(kind);
+      return next !== before && next;
+    }, "디자인 비교 결과가 표시되지 않았습니다: " + selector);
+  }
+
+  async function runProposal(kind, log) {
+    const { board, rootName } = await command("start-proposal", kind);
+    const scanResult = await scan("#scan-selection", rootName);
+    cardFor(cases.find(item => item.key === kind), "risk_signal");
+    log.available = scanResult.proposals?.[kind];
+    const originals = [{ key: "original", frameId: board.start }];
+    const before = (await command("inspect-proposals", kind, null, originals)).proposalData.proposals[0];
+    const comparison = await compareProposal(kind, "create");
+    const columns = comparison.columns;
+    check(sameIds(columns.map(column => column.key), ["original", "minimal", "layout"]),
+      "원본과 두 안의 비교 결과가 없습니다.");
+    const { proposals, reference } = (await command("inspect-proposals", kind, null, columns, comparison.referenceFrameId)).proposalData;
+    check(JSON.stringify(proposals.find(row => row.key === "original")) === JSON.stringify(before),
+      "비교 생성 후 원본 컴포넌트나 화면 연결이 바뀌었습니다.");
+    check(before.components.every(item => item.fingerprint.model), "원본 컴포넌트 연결이 유실되었습니다.");
+    const allScreens = proposals.flatMap(row => row.screens);
+    check(new Set(allScreens).size === 9 && !allScreens.includes(reference.id),
+      "비교 안의 프로토타입이 원본 또는 다른 안의 화면을 사용합니다.");
+    for (const row of proposals) {
+      check(sameIds(row.components.map(item => item.fingerprint.model),
+        before.components.map(item => item.fingerprint.model)),
+      "기존 모델 컴포넌트 연결이 끊겼습니다: " + row.key);
+      check(row.transitions.length === 2 && row.transitions.every(edge =>
+        row.screens.includes(edge.from) && row.screens.includes(edge.to)),
+      "프로토타입 경로가 해당 수정안의 화면으로 연결되지 않았습니다: " + row.key);
+    }
+    const topRow = [reference, proposals.find(row => row.key === "minimal").start, proposals.find(row => row.key === "layout").start];
+    check(topRow.every((node, index) => node.y === reference.y &&
+      (index === 0 || node.x >= topRow[index - 1].x + topRow[index - 1].width)),
+    "원본과 수정안이 같은 줄에 나란히 배치되지 않았습니다.");
+    log.aligned = topRow;
+    log.components = proposals.map(row => ({
+      key: row.key, modelIds: row.components.map(item => item.fingerprint.model), transitions: row.transitions
+    }));
+    const overview = query("#" + kind + "-overview");
+    check(overview, "한 줄 비교 버튼이 없습니다.");
+    overview.click();
+    await until(async () => {
+      const { view } = await command("inspect", kind);
+      return sameIds(view.selected.map(item => item.id), topRow.map(item => item.id)) &&
+        view.selected.every(item => item.inViewport);
+    }, "원본과 두 안이 캔버스에 한꺼번에 보이지 않습니다.");
+    log.steps = [];
+    for (const column of columns) {
+      const row = query('[data-proposal-kind="' + kind + '"][data-proposal-key="' + column.key + '"]');
+      check(row, "안별 비교 행을 찾을 수 없습니다: " + column.key);
+      const original = column.key === "original";
+      const expected = original ? "risk_signal" : "signal_absent";
+      check(column.status === expected && row.dataset.status === expected,
+        "안별 위험 신호 불일치: " + column.key);
+      check(column.steps.length === (kind === "hierarchy" ? 2 : 3),
+        "버튼 또는 가격 단계가 비교표에 빠졌습니다: " + column.key);
+      const native = proposals.find(item => item.key === column.key);
+      if (kind === "hierarchy") {
+        check(column.steps.every(step =>
+          native.transitions.some(edge => edge.from === column.frameId && edge.to === step.frameId && edge.label === step.label)),
+        "비교표 버튼 문구나 목적지가 실제 프로토타입과 다릅니다: " + column.key);
+        if (column.key === "minimal") {
+          check(native.components.every((item, index) => item.parentId === column.frameId &&
+            item.geometry.x === before.components[index].geometry.x && item.geometry.y === before.components[index].geometry.y),
+          "최소 수정안의 버튼 위치가 바뀌었습니다.");
+        } else if (column.key === "layout") {
+          check(native.components[0].parentId === native.components[1].parentId &&
+            native.components[0].parentId !== column.frameId,
+          "배치 변경안에서 두 버튼의 비교 영역이 만들어지지 않았습니다.");
+        }
+      } else {
+        const firstShown = column.steps.find(step => step.detail?.includes("필수 비용 3,000원"));
+        check(firstShown?.key === (original ? "stage-2" : "stage-0") &&
+          column.summary?.includes(firstShown.label) &&
+          column.steps[0].detail?.includes(original ? "29,900원" : "32,900원"),
+        "필수 비용을 처음 표시하는 단계 또는 첫 가격이 다릅니다: " + column.key);
+        if (column.key === "layout") {
+          check(column.steps[1].detail?.includes("필수 비용 3,000원"),
+          "배치 변경안의 중간 단계에 필수 비용이 표시되지 않습니다.");
+        }
+      }
+      for (const step of column.steps) {
+        const link = Array.from(row.querySelectorAll("[data-proposal-step]")).find(button => button.dataset.proposalStep === step.key);
+        check(link && link.textContent.includes(step.label) && link.textContent.includes(step.detail),
+          "단계 이름이나 세부 정보가 표시되지 않았습니다: " + step.label);
+        const { targetInView } = await command("pan-away-proposal", kind, step.frameId);
+        check(!targetInView, "이동 전에 비교 단계가 계속 화면에 보입니다: " + step.label);
+        link.click();
+        await until(async () => {
+          const { view } = await command("inspect", kind);
+          return view.selected.length === 1 && view.selected[0].id === step.frameId && view.selected[0].inViewport;
+        }, "비교 단계의 프레임으로 이동하지 못했습니다: " + step.label);
+        log.steps.push({ column: column.key, ...step });
+      }
+    }
+    const rescanned = await compareProposal(kind, "rescan");
+    check(rescanned.rootId === board.start && rescanned.columns.every(column =>
+      column.status === (column.key === "original" ? "risk_signal" : "signal_absent")),
+    "시작점 고정 또는 수정 후 재검사 결괏값 불일치");
+    log.after = rescanned.columns.map(({ key, status }) => ({ key, status }));
+    log.passed = true;
+  }
   toolbar.addEventListener("click", async (event) => {
     const btn = event.target.closest("button");
     if (!btn || active) return;
     active = true;
     toolbar.querySelectorAll("button").forEach((b) => (b.disabled = true));
     try {
-      if (btn.id === "qa-run" || btn.id === "qa-run-shipping") {
+      if (["qa-run", "qa-run-shipping", "qa-run-proposals"].includes(btn.id)) {
         const report = {
           started: new Date().toISOString(),
           cases: [],
           passed: false,
         };
         try {
-          await command("build");
-          if (btn.id === "qa-run-shipping") {
+          if (btn.id === "qa-run-proposals") {
+            await command("prepare-proposals");
+            for (const kind of ["hierarchy", "price"]) {
+              status.textContent = (kind === "hierarchy" ? "계층구조" : "가격") + " 수정안 검사 중";
+              const log = { journey: kind + "-design", passed: false };
+              report.cases.push(log);
+              await runProposal(kind, log);
+            }
+            status.textContent = "계층구조·가격 수정안 통과";
+          } else if (btn.id === "qa-run-shipping") {
+            await command("build");
             status.textContent = "배송 수정안 검사 중";
             const log = { journey: "shipping-design", passed: false };
             report.cases.push(log);
             await runShipping(log);
             status.textContent = "배송 수정안 통과";
           } else {
+            await command("build");
             for (const spec of cases) {
               status.textContent = spec.label + " 검사 중";
               const log = { journey: spec.key, passed: false };

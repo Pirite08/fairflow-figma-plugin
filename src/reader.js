@@ -1,3 +1,5 @@
+import { feeText } from './analyze.js';
+
 // Keep large canvases responsive. A partial read always carries a warning.
 const MAX_STATES = 40;
 const MAX_LAYERS = 6000;
@@ -221,10 +223,11 @@ function snapshot(frame, budget, warnings) {
           part.longest = text.length;
           setTextStyle(part.item, layer, opacity, background);
         }
-        // Keep the control for navigation and its exact price label for evidence.
-        // Multiple independent price labels remain individually available.
+        // Keep navigation on the card and expose its individual offer and fee
+        // labels for evidence and disclosure timing.
         if (owner === part && ['button', 'link'].includes(part.item.role) &&
-            /^(?:(?:₩|KRW)\s*\d[\d,]*(?:\s*원)?|\d[\d,]*\s*원)$/i.test(text)) {
+            (/^(?:(?:₩|KRW)\s*\d[\d,]*(?:\s*원)?|\d[\d,]*\s*원)$/i.test(text) ||
+              (feeText.test(text) && priceFromText(text) !== undefined))) {
           const price = normalizeLayer(layer, 'text', origin, opacity, background);
           price.control_node_id = part.item.node_id;
           setTextStyle(price, layer, opacity, background);

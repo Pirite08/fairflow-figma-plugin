@@ -1,8 +1,9 @@
 import { createShippingPanel } from "./shipping-panel.js";
 import { shippingQuote } from "./shipping.js";
+import { createProposalPanel, proposalOffers } from "./proposal-panel.js";
 
 // The inspected frame stays pinned when a designer selects an evidence layer.
-export function startPanel(api, inspectFrame, makeShippingDesigns) {
+export function startPanel(api, inspectFrame, makeShippingDesigns, proposalBuilders) {
   let rootId = null;
   let generation = 0;
   const evidenceByState = new Map();
@@ -15,13 +16,15 @@ export function startPanel(api, inspectFrame, makeShippingDesigns) {
     const selection = api.currentPage.selection;
     return selection.length === 1 && selection[0].type === "FRAME" ? selection[0] : null;
   };
-  const shipping = makeShippingDesigns && createShippingPanel({
-    api, inspectFrame, makeShippingDesigns, post, revealNodes,
+  const panelContext = {
+    api, inspectFrame, post, revealNodes,
     context: () => ({ rootId, generation, confirmed: Boolean(rootId && confirmedRootId === rootId) })
-  });
+  };
+  const shipping = makeShippingDesigns && createShippingPanel({ ...panelContext, makeShippingDesigns });
+  const proposals = proposalBuilders && createProposalPanel({ ...panelContext, builders: proposalBuilders });
 
   async function scan(useSelection) {
-    if (shipping?.busy) return;
+    if (shipping?.busy || proposals?.busy) return;
     const version = ++generation;
     evidenceByState.clear();
     canConfirmStart = false;
@@ -46,10 +49,11 @@ export function startPanel(api, inspectFrame, makeShippingDesigns) {
           evidenceByState.get(item.state_id).add(item.node_id);
         }
       }
-      const { shipping: spec, hasFastShipping, ...report } = result;
+      const { shipping: spec, hasFastShipping, proposals: _specs, ...report } = result;
       post("result", {
         ...report,
         rootId: frame.id,
+        ...(proposals ? { proposals: proposalOffers(result) } : {}),
         ...(shipping ? {
           shipping: spec ? shippingQuote(spec) : null,
           shippingIssue: hasFastShipping && !spec
@@ -58,6 +62,7 @@ export function startPanel(api, inspectFrame, makeShippingDesigns) {
         } : {})
       });
       shipping?.showExisting(frame.id);
+      proposals?.showExisting(frame.id);
     } catch (error) {
       if (generation !== version) return;
       console.error("FairFlow scan", error);
@@ -113,10 +118,20 @@ export function startPanel(api, inspectFrame, makeShippingDesigns) {
         return focus(message);
       case "shipping-create":
       case "shipping-rescan":
-        return shipping?.update(message.type === "shipping-create");
+        if (!proposals?.busy) return shipping?.update(message.type === "shipping-create");
+        break;
       case "shipping-focus":
       case "shipping-overview":
-        return shipping?.focus(message);
+        if (!proposals?.busy) return shipping?.focus(message);
+        break;
+      case "proposal-create":
+      case "proposal-rescan":
+        if (!shipping?.busy) return proposals?.update(message.kind, message.type === "proposal-create");
+        break;
+      case "proposal-focus":
+      case "proposal-overview":
+        if (!shipping?.busy) return proposals?.focus(message);
+        break;
     }
   };
   api.on("selectionchange", () => {

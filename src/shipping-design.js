@@ -1,4 +1,5 @@
 import { isSelectionProperty, parseSelection } from "./reader.js";
+import { canvasBounds as box, positionOnCanvas as position, roomToRight } from "./proposal-frames.js";
 
 const GUTTER = 96;
 
@@ -169,15 +170,6 @@ async function wireCopies(frames, controls, destinations, fastId, basicId, defau
   }
 }
 
-function box(node) {
-  return node.absoluteBoundingBox || { x: node.x, y: node.y, width: node.width, height: node.height };
-}
-function position(node, x, y) {
-  const rect = box(node);
-  node.x += x - rect.x;
-  node.y += y - rect.y;
-}
-
 export async function createShippingDesigns(api, spec) {
   const page = api.currentPage;
   if (page.id !== spec.pageId) throw Error("검사한 페이지로 돌아가서 다시 실행하세요.");
@@ -225,17 +217,7 @@ export async function createShippingDesigns(api, spec) {
     y = rects[0].y;
   const boardWidth = 2 * column + Math.max(...rects.map((r) => r.width));
   const boardHeight = rects.reduce((total, r) => total + r.height, 2 * GUTTER);
-  let x = rects[0].x + rects[0].width + GUTTER;
-  for (const rect of existing.map(box).sort((a, b) => a.x - b.x)) {
-    if (
-      rect.y + rect.height + GUTTER <= y ||
-      rect.y >= y + boardHeight + GUTTER ||
-      rect.x + rect.width + GUTTER <= x ||
-      rect.x >= x + boardWidth + GUTTER
-    )
-      continue;
-    x = rect.x + rect.width + GUTTER;
-  }
+  const x = roomToRight(existing, rects[0].x + rects[0].width + GUTTER, y, boardWidth, boardHeight);
 
   const owned = [];
   function copy(source, name, x, y) {
