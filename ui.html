@@ -136,6 +136,13 @@
       parent.postMessage({ pluginMessage: message }, '*');
     }
 
+    function getPluginMessage(event) {
+      // Figma relays messages through its sandbox. The origin window can differ
+      // from the panel's immediate parent.
+      const message = event.data?.pluginMessage;
+      return message && typeof message === 'object' && typeof message.type === 'string' ? message : null;
+    }
+
     function element(tag, className, text) {
       const item = document.createElement(tag);
       if (className) item.className = className;
@@ -233,8 +240,7 @@
     scan.addEventListener('click', () => send({ type: 'scan' }));
     scanSelection.addEventListener('click', () => send({ type: 'scan-selection' }));
     window.addEventListener('message', event => {
-      if (event.source !== parent) return;
-      const message = event.data && event.data.pluginMessage;
+      const message = getPluginMessage(event);
       if (!message) return;
       switch (message.type) {
         case 'result': showResult(message); break;

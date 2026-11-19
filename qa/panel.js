@@ -37,8 +37,7 @@
     resultCount = 0,
     lastError = null;
   window.addEventListener("message", (event) => {
-    if (event.source !== parent) return;
-    const message = event.data && event.data.pluginMessage;
+    const message = getPluginMessage(event);
     if (!message) return;
     if (message.type === "result") {
       lastResult = message;
